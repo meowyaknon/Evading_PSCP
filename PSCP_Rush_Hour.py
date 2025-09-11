@@ -1,4 +1,5 @@
 import pygame
+import random
 
 """ Basic Settings (Done / Changable)"""
 SCREEN_WIDTH = 1400
@@ -24,6 +25,41 @@ pygame.display.set_caption("PSCP Rush Hour")
 pygame.display.set_icon(icon)
 clock = pygame.time.Clock()
 
+class Obstacle_1 :
+    def __init__(self, x, y) :
+        """ Obstacle1 Settings (Need Working)"""
+        self.obstacle_1 = pygame.Rect(x, y, 100 ,100)
+        self.x = x
+        self.color = RED
+        self.speed = 5
+        self.event = False
+        self.passed_half = False
+
+    def move(self) :
+        """ Move Obstacle1 (Need Working)"""
+        if not game_over :
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_SPACE] and not self.event :
+                self.event = True
+            if self.event :
+                self.obstacle_1.x -= self.speed
+                return self.respawn()
+        return None
+    
+    def respawn(self) :
+        """ Respawn Obstacle1 (Need Working) """
+        if self.obstacle_1.right < SCREEN_WIDTH // 2 and not self.passed_half :
+            self.passed_half = True
+            new_x = SCREEN_WIDTH + random.randint(200, 600)
+            new_ob = Obstacle_1(new_x, self.obstacle_1.y)
+            new_ob.event = self.event
+            return new_ob
+        return None
+            
+    def create(self, surface) :
+        """ Create Obstacle1 (Need Working)"""
+        pygame.draw.rect(surface, self.color, self.obstacle_1)
+
 class Player :
     def __init__(self, image, x, y) :
         """ Player Settings (Need Working) """
@@ -31,29 +67,31 @@ class Player :
         self.player = pygame.transform.scale(original_image, (100, 100))
         self.player_rect = self.player.get_rect(midbottom=(x, y))
         self.velocity_y = 0
-        self.gravity = 0.98
-        self.jump_strength = -20
-        self.on_ground = False
+        self.gravity = 0.35
+        self.jump_strength = -12
+        self.on_ground = True
 
     def handle_input(self) :
         """ Input reciever (Done / Changable) """
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_SPACE] and self.on_ground :
-            self.velocity_y = self.jump_strength
-            self.on_ground = False
+        if not game_over :
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_SPACE] and self.on_ground :
+                self.velocity_y = self.jump_strength
+                self.on_ground = False
 
     def apply_gravity(self, terrain) :
-        """ Jumping physics (Done / Changable) """
-        self.velocity_y += self.gravity
-        self.player_rect.y += self.velocity_y
-        if self.player_rect.bottom >= terrain.top :
-            self.player_rect.bottom = terrain.top
-            self.velocity_y = 0
-            self.on_ground = True
+        """ Add Jumping physics (Done / Changable) """
+        if not game_over :
+            self.velocity_y += self.gravity
+            self.player_rect.y += self.velocity_y
+            if self.player_rect.bottom >= terrain.top :
+                self.player_rect.bottom = terrain.top
+                self.velocity_y = 0
+                self.on_ground = True
 
-    def appearance(self) :
+    def create(self, surface) :
         """ Create Player (Done / Changable) """
-        screen.blit(self.player, self.player_rect)
+        surface.blit(self.player, self.player_rect)
 
 class Terrain :
     def __init__(self, x, y) :
@@ -61,26 +99,42 @@ class Terrain :
         self.terrain = pygame.Rect(x, y, 999999, 999999)
         self.color = GREEN
 
-    def draw(self) :
+    def create(self, surface) :
         """ Create Terrain (Need Working) """
-        pygame.draw.rect(screen, self.color, self.terrain)
+        pygame.draw.rect(surface, self.color, self.terrain)
 
 player = Player("Graphics/amongus.png", 100, 475)
 base = Terrain(-1000, 475)
+obstacles = [Obstacle_1(1200, 375)]
+
+game_over = False
 
 """ Main Function (Need Working) """
 running = True
-while running :
-    for event in pygame.event.get() :
-        if event.type == pygame.QUIT :
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
             running = False
 
     player.handle_input()
     player.apply_gravity(base.terrain)
 
     screen.fill(WHITE)
-    base.draw()
-    player.appearance()
+    base.create(screen)
+    player.create(screen)
+
+    for obs in obstacles[:]:
+        new_obs = obs.move()
+        obs.create(screen)
+
+        if new_obs:
+            obstacles.append(new_obs)
+        
+        if obs.obstacle_1.right < 0 :
+            obstacles.remove(obs)
+
+        if player.player_rect.colliderect(obs.obstacle_1):
+            game_over = True
 
     pygame.display.update()
     clock.tick(FPS)
