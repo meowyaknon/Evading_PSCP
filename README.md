@@ -1,10 +1,5 @@
 # Contributing to PSCP Rush Hour
 
-Thank you for considering contributing to this project! 🎉  
-Contributions are welcome and appreciated. This guide will help you get started.
-
----
-
 ## 🚀 How to Contribute
 
 ### 1. Fork the Repository
