@@ -35,10 +35,12 @@ class Player :
 
     def handle_input(self, keys) :
         """ Input reciever (Done / Changable) """
+        global game_started
         if not game_over :
             if keys[pygame.K_SPACE] and self.on_ground :
                 self.velocity_y = self.jump_strength
                 self.on_ground = False
+                game_started = True
 
     def apply_gravity(self, terrain, dt) :
         """ Add Jumping physics (Done / Changable) """
@@ -63,8 +65,8 @@ class Player :
 class Obstacle :
     def __init__(self, x, terrain_top) :
         """ Obstacle Settings """
-        self.width = random.randint(50, 120)
-        self.height = random.randint(50, 120)
+        self.width = random.randint(75, 100)
+        self.height = random.randint(75, 100)
         self.obstacle = pygame.Rect(x, terrain_top - self.height, self.width, self.height)
         self.color = RED
         self.speed = 5
@@ -72,13 +74,13 @@ class Obstacle :
 
     def move(self, dt) :
         """ Move Obstacle (Need Working)"""
-        if not game_over and self.active :
+        if not game_over and self.active and game_started :
             self.obstacle.x -= self.speed * dt * FPS
 
         if self.obstacle.right < 0 :
-            self.obstacle.x = SCREEN_WIDTH + random.randint(300, 600)
-            self.height = random.randint(50, 120)
-            self.width = random.randint(50, 120)
+            self.obstacle.x = SCREEN_WIDTH + random.randint(200, 400)
+            self.height = random.randint(75, 100)
+            self.width = random.randint(75, 100)
             self.obstacle.size = (self.width, self.height)
             self.obstacle.bottom = base.terrain.top
 
@@ -89,7 +91,7 @@ class Obstacle :
 class Terrain :
     def __init__(self, x, y) :
         """ Terrain Settings (Need Working) """
-        self.terrain = pygame.Rect(x, y, 999999, 999999)
+        self.terrain = pygame.Rect(x, y, SCREEN_WIDTH * 3, SCREEN_HEIGHT - y)
         self.color = GREEN
 
     def create(self, surface) :
@@ -97,14 +99,17 @@ class Terrain :
         pygame.draw.rect(surface, self.color, self.terrain)
 
 """ Game Settings """
-player = Player("Graphics/amongus.png", 100, 475)
 base = Terrain(-1000, 475)
+player = Player("Graphics/amongus.png", 100, base.terrain.top)
 game_over = False
+game_started = False
 
-num_obstacles = 5
-distance = 400
-start_x = 1200
+""" Obstacle Pre-Set Settings """
+num_obstacles = 4
+distance = random.randint(400, 600)
+start_x = 1000
 
+""" Obstacle Pre-Set """
 obstacles = []
 for i in range(num_obstacles) :
     x = start_x + i * distance
@@ -113,13 +118,14 @@ random.shuffle(obstacles)
 
 def reset_game() :
     """ Reset all game stats (Need Working) """
-    global game_over
+    global game_over, game_started
     player.reset()
     for i, obs in enumerate(obstacles) :
         obs.obstacle.x = start_x + i * distance
         obs.active = True
     random.shuffle(obstacles)
     game_over = False
+    game_started = False
 
 """ Main Function (Need Working) """
 running = True
@@ -131,7 +137,7 @@ while running :
         if event.type == pygame.QUIT :
             running = False
 
-    if game_over and keys[pygame.K_r] :
+    if game_over and keys[pygame.K_ESCAPE] :
         reset_game()
 
     player.handle_input(keys)
