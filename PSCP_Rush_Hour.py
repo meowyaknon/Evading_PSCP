@@ -74,7 +74,7 @@ class Obstacle :
         """ Move Obstacle (Need Working)"""
         if not game_over and self.active :
             self.obstacle.x -= self.speed * dt * FPS
-            
+
         if self.obstacle.right < 0 :
             self.obstacle.x = SCREEN_WIDTH + random.randint(300, 600)
             self.height = random.randint(50, 120)
@@ -84,7 +84,7 @@ class Obstacle :
 
     def create(self, surface) :
         """ Create Obstacle (Need Working)"""
-        pygame.draw.obstacle(surface, self.color, self.obstacle)
+        pygame.draw.rect(surface, self.color, self.obstacle)
 
 class Terrain :
     def __init__(self, x, y) :
@@ -94,7 +94,7 @@ class Terrain :
 
     def create(self, surface) :
         """ Create Terrain (Need Working) """
-        pygame.draw.obstacle(surface, self.color, self.terrain)
+        pygame.draw.rect(surface, self.color, self.terrain)
 
 """ Game Settings """
 player = Player("Graphics/amongus.png", 100, 475)
