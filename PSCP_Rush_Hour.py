@@ -1,7 +1,7 @@
 import pygame
 import random
 
-""" Basic Settings (Done / Changable)"""
+""" Basic Settings """
 SCREEN_WIDTH = 1400
 SCREEN_HEIGHT = 800
 FPS = 120
@@ -9,133 +9,224 @@ FPS = 120
 """ Colors """
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
-RED = (220, 40, 40)
-GREEN = (60, 200, 100)
-YELLOW = (240, 220, 60)
+
+""" Graphics Stuff """
+icon_image = pygame.image.load("Graphics/cats.jpg")
+terrain_image = "Graphics/floor.jpg"
+player_image = "Graphics/amongus.png"
+roof_image = "Graphics/roof.jpg"
+obstacle_images_paths = [
+    "Graphics/cats.jpg",
+    "Graphics/cats.jpg",  # top-half hitbox
+    "Graphics/cats.jpg",
+    "Graphics/cats.jpg",  # hanging
+    "Graphics/cats.jpg"
+]
 
 pygame.init()
 
-""" Screen Settings (Done / Changable) """
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+""" Screen Settings """
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.HWSURFACE | pygame.DOUBLEBUF)
+font = pygame.font.Font(None, 60)
+pygame.display.set_icon(icon_image)
 pygame.display.set_caption("PSCP Rush Hour")
 clock = pygame.time.Clock()
 
+""" Obstacle Pre-Set Settings """
+num_obstacles = 5
+obstacle_images = []
+for path in obstacle_images_paths :
+    image = pygame.image.load(path).convert_alpha()
+    scaled_versions = {
+        "small" : pygame.transform.scale(image, (80, 80)),
+        "medium" : pygame.transform.scale(image, (70, 120)),
+        "wide" : pygame.transform.scale(image, (120, 70))
+    }
+    obstacle_images.append(scaled_versions)
+
 class Player :
-    def __init__(self, image, x, y) :
-        """ Player Settings (Need Working) """
-        original_image = pygame.image.load(image).convert_alpha()
-        self.start_x = x
-        self.start_y = y
-        self.player = pygame.transform.scale(original_image, (100, 100))
-        self.obstacle = self.player.get_rect(midbottom=(x, y))
-        self.velocity_y = 0
-        self.gravity = 0.35
-        self.jump_strength = -12
+    def __init__(self, image_path, x, y) :
+        """ Player Settings """
+        self.original_image = pygame.image.load(image_path).convert_alpha()
+        self.image_normal = pygame.transform.scale(self.original_image, (100, 100))
+        self.sliding_height = 50
+        self.image_slide = pygame.transform.scale(self.original_image, (100, self.sliding_height))
+        self.start_x, self.start_y = x, y
+        self.obstacle = self.image_normal.get_rect(midbottom=(x, y))
+        self.normal_height = self.obstacle.height
+        self.velocity = 0
+        self.gravity = 2500
+        self.jump_strength = -1000
         self.on_ground = True
+        self.falling = False
+        self.collision = False
+        self.sliding = False
 
     def handle_input(self, keys) :
-        """ Input reciever (Done / Changable) """
+        """ Input Receiver """
         global game_started
         if not game_over :
-            if keys[pygame.K_SPACE] and self.on_ground :
-                self.velocity_y = self.jump_strength
+            if keys[pygame.K_SPACE] and self.on_ground and not self.sliding :
+                self.velocity = self.jump_strength
                 self.on_ground = False
                 game_started = True
 
-    def apply_gravity(self, terrain, dt) :
-        """ Add Jumping physics (Done / Changable) """
-        if not game_over :
-            self.velocity_y += self.gravity * dt * FPS
-            self.obstacle.y += self.velocity_y * dt * FPS
-            if self.obstacle.bottom >= terrain.top :
-                self.obstacle.bottom = terrain.top
-                self.velocity_y = 0
+            if keys[pygame.K_s] or keys[pygame.K_DOWN] :
+                if not self.sliding and self.on_ground :
+                    self.sliding = True
+                    self.obstacle.height = self.sliding_height
+                    self.obstacle.bottom = base.terrain.top
+            else :
+                if self.sliding :
+                    self.sliding = False
+                    self.obstacle.height = self.normal_height
+                    self.obstacle.bottom = base.terrain.top
+
+    def apply_gravity(self, floor, dt) :
+        """ Jumping physics """
+        self.velocity += self.gravity * dt
+        self.obstacle.y += self.velocity * dt
+
+        if not self.falling :
+            if self.obstacle.bottom >= floor.top :
+                self.obstacle.bottom = floor.top
+                self.velocity = 0
                 self.on_ground = True
 
+        if self.collision :
+            self.velocity = -1000
+            self.collision = False
+            self.falling = True
+
+        if self.obstacle.top > SCREEN_HEIGHT :
+            self.velocity = 0
+
     def reset(self) :
-        """ Reset player position and movement (Done / Changable) """
+        """ Reset player """
         self.obstacle.midbottom = (self.start_x, self.start_y)
-        self.velocity_y = 0
+        self.velocity = 0
         self.on_ground = True
+        self.falling = False
+        self.collision = False
+        self.sliding = False
 
     def create(self, surface) :
-        """ Create Player (Done / Changable) """
-        surface.blit(self.player, self.obstacle)
+        """ Draw player """
+        surface.blit(self.image_slide if self.sliding else self.image_normal, self.obstacle)
 
 class Obstacle :
     def __init__(self, x, terrain_top) :
         """ Obstacle Settings """
-        self.width = random.randint(75, 100)
-        self.height = random.randint(75, 100)
-        self.obstacle = pygame.Rect(x, terrain_top - self.height, self.width, self.height)
-        self.color = RED
-        self.speed = 5
+        self.type = random.randint(0, 4)
+        self.hanging = self.type == 2
+        self.top_half_hitbox = self.type == 1
+        self.speed = 600
         self.active = True
+        self.reset(x, terrain_top)
+
+    def reset(self, x, terrain_top) :
+        """ Reset Obstacle """
+        if self.type in [0, 1, 2] :
+            self.width, self.height = 70, 120
+            self.image = obstacle_images[self.type]["medium"]
+        elif self.type == 3 :
+            self.width, self.height = 120, 70
+            self.image = obstacle_images[self.type]["wide"]
+        else :
+            self.width, self.height = 80, 80
+            self.image = obstacle_images[self.type]["small"]
+
+        if self.hanging :
+            self.obstacle = self.image.get_rect(midtop=(x, above.roof.bottom))
+        else :
+            self.obstacle = self.image.get_rect(midbottom=(x, terrain_top))
 
     def move(self, dt) :
-        """ Move Obstacle (Need Working)"""
+        """ Move Obstacle """
         if not game_over and self.active and game_started :
-            self.obstacle.x -= self.speed * dt * FPS
+            self.obstacle.x -= self.speed * dt
 
         if self.obstacle.right < 0 :
-            self.obstacle.x = SCREEN_WIDTH + random.randint(200, 400)
-            self.height = random.randint(75, 100)
-            self.width = random.randint(75, 100)
-            self.obstacle.size = (self.width, self.height)
-            self.obstacle.bottom = base.terrain.top
+            self.type = random.randint(0, 4)
+            self.hanging = self.type == 2
+            self.top_half_hitbox = self.type == 1
+            max_x = max(obs.obstacle.right for obs in obstacles)
+            new_x = max(SCREEN_WIDTH, max_x) + random.randint(400, 700)
+            self.reset(new_x, base.terrain.top)
 
     def create(self, surface) :
-        """ Create Obstacle (Need Working)"""
-        pygame.draw.rect(surface, self.color, self.obstacle)
+        """ Draw Obstacle """
+        surface.blit(self.image, self.obstacle)
+
+    def hitbox(self) :
+        """ Obstacle Hitbox """
+        if self.top_half_hitbox :
+            return pygame.Rect(self.obstacle.x, self.obstacle.y, self.obstacle.width, self.obstacle.height // 2)
+        return self.obstacle
+
+class Roof :
+    def __init__(self, image_path, x, y) :
+        """ Roof Settings """
+        original_image = pygame.image.load(image_path).convert_alpha()
+        self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH // 4, 200))
+        self.roof = self.texture.get_rect(topleft=(x, y))
+
+    def create(self, surface) :
+        surface.blit(self.texture, self.roof)
 
 class Terrain :
-    def __init__(self, x, y) :
-        """ Terrain Settings (Need Working) """
-        self.terrain = pygame.Rect(x, y, SCREEN_WIDTH * 3, SCREEN_HEIGHT - y)
-        self.color = GREEN
+    def __init__(self, image_path, x, y) :
+        """ Terrain Settings """
+        original_image = pygame.image.load(image_path).convert_alpha()
+        self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH * 3, SCREEN_HEIGHT - y))
+        self.terrain = self.texture.get_rect(topleft=(x, y))
 
     def create(self, surface) :
-        """ Create Terrain (Need Working) """
-        pygame.draw.rect(surface, self.color, self.terrain)
+        surface.blit(self.texture, self.terrain)
 
 """ Game Settings """
-base = Terrain(-1000, 475)
-player = Player("Graphics/amongus.png", 100, base.terrain.top)
+above = Roof(roof_image, 100, 0)
+base = Terrain(terrain_image, -1000, 575)
+player = Player(player_image, 100, base.terrain.top)
 game_over = False
 game_started = False
+score = 0
 
-""" Obstacle Pre-Set Settings """
-num_obstacles = 4
-distance = random.randint(400, 600)
-start_x = 1000
-
-""" Obstacle Pre-Set """
 obstacles = []
-for i in range(num_obstacles) :
-    x = start_x + i * distance
+x = 1100
+for _ in range(num_obstacles) :
     obstacles.append(Obstacle(x, base.terrain.top))
-random.shuffle(obstacles)
+    x += random.randint(400, 700)
 
 def reset_game() :
-    """ Reset all game stats (Need Working) """
-    global game_over, game_started
+    """ Reset all game stats """
+    global game_over, game_started, score
     player.reset()
-    for i, obs in enumerate(obstacles) :
-        obs.obstacle.x = start_x + i * distance
+    x = 1100
+    for obs in obstacles :
+        obs.type = random.randint(0, 4)
+        obs.hanging = obs.type == 2
+        obs.top_half_hitbox = obs.type == 1
+        obs.reset(x, base.terrain.top)
         obs.active = True
+        x += random.randint(400, 700)
     random.shuffle(obstacles)
     game_over = False
     game_started = False
+    score = 0
 
-""" Main Function (Need Working) """
+""" Main Attraction """
 running = True
 while running :
-    dt = clock.get_time() / 1000
+    dt = clock.tick(FPS) / 1000
     keys = pygame.key.get_pressed()
 
     for event in pygame.event.get() :
         if event.type == pygame.QUIT :
             running = False
+
+    if game_started and not game_over :
+        score += dt * 100
 
     if game_over and keys[pygame.K_ESCAPE] :
         reset_game()
@@ -144,19 +235,24 @@ while running :
     player.apply_gravity(base.terrain, dt)
 
     screen.fill(WHITE)
+    above.create(screen)
     base.create(screen)
     player.create(screen)
 
     for obs in obstacles :
-        obs.move(dt)
-        obs.create(screen)
+        if obs.obstacle.right > 0 :
+            obs.move(dt)
+            obs.create(screen)
 
-        if player.obstacle.colliderect(obs.obstacle) :
-            game_over = True
-            for ob in obstacles :
-                ob.active = False
+            if player.obstacle.colliderect(obs.hitbox()) and not game_over :
+                game_over = True
+                for ob in obstacles :
+                    ob.active = False
+                player.collision = True
+
+    score_text = font.render(f"Score  : {str(int(score)).zfill(5)}", True, BLACK)
+    screen.blit(score_text, (1050, 50))
 
     pygame.display.flip()
-    clock.tick(FPS)
 
 pygame.quit()
