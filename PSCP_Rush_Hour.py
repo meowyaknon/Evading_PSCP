@@ -13,11 +13,11 @@ BLACK = (0, 0, 0)
 """ Graphics Stuff """
 icon_image = pygame.image.load("Graphics/cats.jpg")
 terrain_image = "Graphics/floor.jpg"
-player_image = "Graphics/amongus.png"
+player_image = "Graphics/cats.jpg"
 roof_image = "Graphics/roof.jpg"
 obstacle_images_paths = [
     "Graphics/cats.jpg",
-    "Graphics/cats.jpg",  # top-half hitbox
+    "Graphics/obstacle.jpg",  # top-half hitbox
     "Graphics/cats.jpg",
     "Graphics/cats.jpg",  # hanging
     "Graphics/cats.jpg"
@@ -38,9 +38,10 @@ obstacle_images = []
 for path in obstacle_images_paths :
     image = pygame.image.load(path).convert_alpha()
     scaled_versions = {
-        "small" : pygame.transform.scale(image, (80, 80)),
-        "medium" : pygame.transform.scale(image, (70, 120)),
-        "wide" : pygame.transform.scale(image, (120, 70))
+        "small" : pygame.transform.scale(image, (100, 100)),
+        "medium" : pygame.transform.scale(image, (100, 160)),
+        "wide" : pygame.transform.scale(image, (175, 125)),
+        "hanging" :pygame.transform.scale(image, (125, 330))
     }
     obstacle_images.append(scaled_versions)
 
@@ -48,15 +49,15 @@ class Player :
     def __init__(self, image_path, x, y) :
         """ Player Settings """
         self.original_image = pygame.image.load(image_path).convert_alpha()
-        self.image_normal = pygame.transform.scale(self.original_image, (100, 100))
-        self.sliding_height = 50
-        self.image_slide = pygame.transform.scale(self.original_image, (100, self.sliding_height))
+        self.image_normal = pygame.transform.scale(self.original_image, (100, 200))
+        self.sliding_height = 80
+        self.image_slide = pygame.transform.scale(self.original_image, (175, self.sliding_height))
         self.start_x, self.start_y = x, y
         self.obstacle = self.image_normal.get_rect(midbottom=(x, y))
         self.normal_height = self.obstacle.height
         self.velocity = 0
         self.gravity = 2500
-        self.jump_strength = -1000
+        self.jump_strength = -1100
         self.on_ground = True
         self.falling = False
         self.collision = False
@@ -94,7 +95,7 @@ class Player :
                 self.on_ground = True
 
         if self.collision :
-            self.velocity = -1000
+            self.velocity = -1200
             self.collision = False
             self.falling = True
 
@@ -126,14 +127,17 @@ class Obstacle :
 
     def reset(self, x, terrain_top) :
         """ Reset Obstacle """
-        if self.type in [0, 1, 2] :
-            self.width, self.height = 70, 120
+        if self.type in [0, 1] :
+            self.width, self.height = 100, 160
             self.image = obstacle_images[self.type]["medium"]
         elif self.type == 3 :
-            self.width, self.height = 120, 70
+            self.width, self.height = 175, 125
             self.image = obstacle_images[self.type]["wide"]
+        elif self.type == 2 :
+            self.width, self.height = 100, 330
+            self.image = obstacle_images[self.type]["hanging"]
         else :
-            self.width, self.height = 80, 80
+            self.width, self.height = 100, 100
             self.image = obstacle_images[self.type]["small"]
 
         if self.hanging :
@@ -151,7 +155,7 @@ class Obstacle :
             self.hanging = self.type == 2
             self.top_half_hitbox = self.type == 1
             max_x = max(obs.obstacle.right for obs in obstacles)
-            new_x = max(SCREEN_WIDTH, max_x) + random.randint(400, 700)
+            new_x = max(SCREEN_WIDTH, max_x) + random.randint(550, 700)
             self.reset(new_x, base.terrain.top)
 
     def create(self, surface) :
@@ -168,7 +172,7 @@ class Roof :
     def __init__(self, image_path, x, y) :
         """ Roof Settings """
         original_image = pygame.image.load(image_path).convert_alpha()
-        self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH // 4, 200))
+        self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
         self.roof = self.texture.get_rect(topleft=(x, y))
 
     def create(self, surface) :
@@ -178,15 +182,28 @@ class Terrain :
     def __init__(self, image_path, x, y) :
         """ Terrain Settings """
         original_image = pygame.image.load(image_path).convert_alpha()
-        self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH * 3, SCREEN_HEIGHT - y))
+        self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH * 2, SCREEN_HEIGHT))
         self.terrain = self.texture.get_rect(topleft=(x, y))
+        self.active = True
+        self.speed = 600
+ 
+    def move(self, dt) :
+        """ Move Terrain """
+        if not game_over and self.active and game_started :
+            self.terrain.x -= self.speed * dt
+
+        if self.terrain.right < SCREEN_WIDTH // 2 :
+            self.reset(SCREEN_WIDTH, 650)
+
+    def reset(self, x, terrain_topright) :
+        self.terrain = self.texture.get_rect(topleft=(x, terrain_topright))
 
     def create(self, surface) :
         surface.blit(self.texture, self.terrain)
 
 """ Game Settings """
-above = Roof(roof_image, 100, 0)
-base = Terrain(terrain_image, -1000, 575)
+above = Roof(roof_image, 0, -675)
+base = Terrain(terrain_image, 0, 650)
 player = Player(player_image, 100, base.terrain.top)
 game_over = False
 game_started = False
@@ -196,7 +213,7 @@ obstacles = []
 x = 1100
 for _ in range(num_obstacles) :
     obstacles.append(Obstacle(x, base.terrain.top))
-    x += random.randint(400, 700)
+    x += random.randint(550, 700)
 
 def reset_game() :
     """ Reset all game stats """
@@ -209,7 +226,8 @@ def reset_game() :
         obs.top_half_hitbox = obs.type == 1
         obs.reset(x, base.terrain.top)
         obs.active = True
-        x += random.randint(400, 700)
+        x += random.randint(550, 700)
+    base.active = True
     random.shuffle(obstacles)
     game_over = False
     game_started = False
@@ -222,13 +240,13 @@ while running :
     keys = pygame.key.get_pressed()
 
     for event in pygame.event.get() :
-        if event.type == pygame.QUIT :
+        if event.type == pygame.QUIT or keys[pygame.K_ESCAPE] :
             running = False
 
     if game_started and not game_over :
         score += dt * 100
 
-    if game_over and keys[pygame.K_ESCAPE] :
+    if game_over and keys[pygame.K_r] :
         reset_game()
 
     player.handle_input(keys)
@@ -237,7 +255,9 @@ while running :
     screen.fill(WHITE)
     above.create(screen)
     base.create(screen)
+    base.move(dt)
     player.create(screen)
+
 
     for obs in obstacles :
         if obs.obstacle.right > 0 :
@@ -248,9 +268,10 @@ while running :
                 game_over = True
                 for ob in obstacles :
                     ob.active = False
+                base.active = False
                 player.collision = True
 
-    score_text = font.render(f"Score  : {str(int(score)).zfill(5)}", True, BLACK)
+    score_text = font.render(f"Score : {str(int(score)).zfill(5)}", True, WHITE)
     screen.blit(score_text, (1050, 50))
 
     pygame.display.flip()
