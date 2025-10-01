@@ -11,16 +11,16 @@ WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 
 """ Graphics Stuff """
-icon_image = pygame.image.load("Graphics/cats.jpg")
-terrain_image = "Graphics/floor.jpg"
-player_image = "Graphics/cats.jpg"
-roof_image = "Graphics/roof.jpg"
+icon_image = pygame.image.load("Evading_PSCP/Asset/cats.jpg")
+terrain_image = "Evading_PSCP/Asset/floor.jpg"
+player_image = "Evading_PSCP/Asset/cats.jpg"
+roof_image = "Evading_PSCP/Asset/roof.jpg"
 obstacle_images_paths = [
-    "Graphics/cats.jpg",
-    "Graphics/obstacle.jpg",  # top-half hitbox
-    "Graphics/cats.jpg",
-    "Graphics/cats.jpg",  # hanging
-    "Graphics/cats.jpg"
+    "Evading_PSCP/Asset/cats.jpg",
+    "Evading_PSCP/Asset/obstacle.jpg",  # top-half hitbox
+    "Evading_PSCP/Asset/cats.jpg",
+    "Evading_PSCP/Asset/cats.jpg",  # hanging
+    "Evading_PSCP/Asset/cats.jpg"
 ]
 
 pygame.init()
