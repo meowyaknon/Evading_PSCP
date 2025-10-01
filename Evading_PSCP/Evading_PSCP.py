@@ -1,5 +1,6 @@
 import pygame
 import random
+import os 
 
 """ Basic Settings """
 SCREEN_WIDTH = 1400
@@ -11,16 +12,16 @@ WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 
 """ Graphics Stuff """
-icon_image = pygame.image.load("Evading_PSCP/Asset/cats.jpg")
-terrain_image = "Evading_PSCP/Asset/floor.jpg"
-player_image = "Evading_PSCP/Asset/cats.jpg"
-roof_image = "Evading_PSCP/Asset/roof.jpg"
+icon_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", "cats.jpg"))
+terrain_image = "floor.jpg"
+player_image = "cats.jpg"
+roof_image = "roof.jpg"
 obstacle_images_paths = [
-    "Evading_PSCP/Asset/cats.jpg",
-    "Evading_PSCP/Asset/obstacle.jpg",  # top-half hitbox
-    "Evading_PSCP/Asset/cats.jpg",
-    "Evading_PSCP/Asset/cats.jpg",  # hanging
-    "Evading_PSCP/Asset/cats.jpg"
+    "cats.jpg",
+    "obstacle.jpg",  # top-half hitbox
+    "cats.jpg",
+    "cats.jpg",  # hanging
+    "cats.jpg"
 ]
 
 pygame.init()
@@ -29,14 +30,14 @@ pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.HWSURFACE | pygame.DOUBLEBUF)
 font = pygame.font.Font(None, 60)
 pygame.display.set_icon(icon_image)
-pygame.display.set_caption("PSCP Rush Hour")
+pygame.display.set_caption("Evading PSCP")
 clock = pygame.time.Clock()
 
 """ Obstacle Pre-Set Settings """
 num_obstacles = 5
 obstacle_images = []
 for path in obstacle_images_paths :
-    image = pygame.image.load(path).convert_alpha()
+    image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", path)).convert_alpha()
     scaled_versions = {
         "small" : pygame.transform.scale(image, (100, 100)),
         "medium" : pygame.transform.scale(image, (100, 160)),
@@ -48,7 +49,7 @@ for path in obstacle_images_paths :
 class Player :
     def __init__(self, image_path, x, y) :
         """ Player Settings """
-        self.original_image = pygame.image.load(image_path).convert_alpha()
+        self.original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
         self.image_normal = pygame.transform.scale(self.original_image, (100, 200))
         self.sliding_height = 80
         self.image_slide = pygame.transform.scale(self.original_image, (175, self.sliding_height))
@@ -162,7 +163,7 @@ class Obstacle :
 class Roof :
     def __init__(self, image_path, x, y) :
         """ Roof Settings """
-        original_image = pygame.image.load(image_path).convert_alpha()
+        original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
         self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
         self.roof = [
             self.texture.get_rect(topleft=(x, y)),
@@ -195,7 +196,7 @@ class Roof :
 class Terrain :
     def __init__(self, image_path, x, y) :
         """ Terrain Settings """
-        original_image = pygame.image.load(image_path).convert_alpha()
+        original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
         self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
         self.terrain = [
             self.texture.get_rect(topleft=(x, y)),
