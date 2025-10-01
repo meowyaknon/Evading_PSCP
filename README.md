@@ -1,45 +1,28 @@
-# PSCP Rush Hour
+# Evading PSCP
+A game project for PSCP Subject from Gloria F School of Information Technology, KMITL (1st year).
 
-## 🚀 How to Contribute
+โปรเจ็กต์เกมวิชา Problem Solving and Computer Programming (PSCP) คณะเทคโนโลยีสารสนเทศ สถาบันเทคโนโลยีพระจอมเกล้าเจ้าคุณทหารลาดกระบัง
 
-### 1. Fork the Repository
-- Click the **Fork** button (top right of the repo page) to create your own copy of this repository.
+## Contributors
+- MeowYakNon: ศิริเทพ บดิการ 68070316
+- 
+- 
+- 
+- 
 
-### 2. Clone Your Fork
-- Clone your forked repository to your local machine:
-```bash
-git clone https://github.com/<your-username>/<repo-name>.git
-cd <repo-name>
-```
-### 3. Create a Branch
+## About This Project
+AbyssWalker เป็น Project เกมแนว 2D Topdown Roguelike ที่ผู้เล่นจะต้องผ่านด่านไปเรื่อยๆในดันเจี้ยนแห่งความมืดมิด
 
-- Always work on a new branch (never directly on `main`):
-```
-git checkout -b feature/your-feature-name
-```
-### 4. Make Your Changes
+ใช้ Godot Engine Version 3.6 ในการทำงาน
 
-- Write clear, maintainable code.
-
-- Follow the project’s coding style (PEP8 for Python, ESLint rules for JS, etc.).
-
-- Add or update documentation if needed.
-
-### 5. Commit Your Changes
-
-- Write descriptive commit messages:
-```
-git add .
-git commit -m "Add: short description of your change"
-```
-### 6. Push to Your Fork
-```
-git push origin feature/your-feature-name
-```
-### 7. Open a Pull Request
-
-- Go to the original repository and open a Pull Request (PR):
-
-- Describe your changes clearly.
-
-- Mention related issue numbers if applicable (e.g., Closes #42).
+## วิธีการติดตั้ง Project
+ทำการ Git clone project ใน command prompt หรือ clone ใน Github desktop git clone https://github.com/Mstxz/Elven-Abyss-Game.git
+เปิดโฟลเดอร์ ที่ทำการ clone มา
+เปิดโฟลเดอร์ ที่ชื่อว่า Godot_Main
+เปิดโปรแกรมที่ชื่่อว่า Godot_v3.6-stable_win64 และเล่นได้เลย
+## For Eng User - Project Installation
+Clone this project in command prompt or clone it in Github desktop git clone https://github.com/Mstxz/Elven-Abyss-Game.git
+Open the Folder
+Open folder named Godot_Main
+Open a program named Godot_v3.6-stable_win64 and Enjoy!
+รองรับเฉพาะระบบปฎิบัติการ Windows เท่านั้น - Only windows os Support
