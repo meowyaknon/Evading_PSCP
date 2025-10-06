@@ -298,12 +298,12 @@ while running :
             obs.move(dt)
             obs.create(screen)
 
-            # if player.obstacle.colliderect(obs.hitbox()) and not game_over :
-            #     game_over = True
-            #     for ob in obstacles :
-            #         ob.active = False
-            #     base.active = False
-            #     player.collision = True
+            if player.obstacle.colliderect(obs.hitbox()) and not game_over :
+                game_over = True
+                for ob in obstacles :
+                    ob.active = False
+                base.active = False
+                player.collision = True
 
     score_text = font.render(f"Score  : {str(int(score)).zfill(5)}", True, WHITE)
     screen.blit(score_text, (1050, 50))
