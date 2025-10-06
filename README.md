@@ -8,4 +8,4 @@ A game project for PSCP Subject from Gloria F School of Information Technology, 
 - Pun_Nep_Kin: กฤษฎิ์ ลิ้มตระกูล 68070214
 - Mayb.pinny: ปรียาพร เอี่ยมประดิษฐ์ภัณ 68070286
 - pearson_pesrmak: เอมม่า เพียร์สัน 68070328
-- 
+- jame_thananon: ธนานน๖ื เจียจงเจริญชัย 68070265
