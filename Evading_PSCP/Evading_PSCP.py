@@ -34,7 +34,7 @@ pygame.display.set_caption("Evading PSCP")
 clock = pygame.time.Clock()
 
 """ Obstacle Pre-Set Settings """
-num_obstacles = 5
+num_obstacles = 9999
 obstacle_images = []
 for path in obstacle_images_paths :
     image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", path)).convert_alpha()
@@ -298,12 +298,12 @@ while running :
             obs.move(dt)
             obs.create(screen)
 
-            if player.obstacle.colliderect(obs.hitbox()) and not game_over :
-                game_over = True
-                for ob in obstacles :
-                    ob.active = False
-                base.active = False
-                player.collision = True
+            # if player.obstacle.colliderect(obs.hitbox()) and not game_over :
+            #     game_over = True
+            #     for ob in obstacles :
+            #         ob.active = False
+            #     base.active = False
+            #     player.collision = True
 
     score_text = font.render(f"Score  : {str(int(score)).zfill(5)}", True, WHITE)
     screen.blit(score_text, (1050, 50))
