@@ -46,7 +46,7 @@ pygame.display.set_caption("Evading PSCP")
 clock = pygame.time.Clock()
 
 """ Obstacle Pre-Set Settings """
-num_obstacles = 5
+num_obstacles = 9999
 obstacle_images = []
 for path in obstacle_images_paths:
     try:
