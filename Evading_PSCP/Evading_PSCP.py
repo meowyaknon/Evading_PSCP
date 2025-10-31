@@ -16,6 +16,7 @@ icon_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", 
 terrain_image = "floor.jpg"
 player_image = "cats.jpg"
 roof_image = "roof.jpg"
+boss_image_path = "amongus.png"
 obstacle_images_paths = [
     "cats.jpg",
     "obstacle.jpg",  # top-half hitbox
@@ -48,7 +49,6 @@ for path in obstacle_images_paths :
 
 class Player :
     def __init__(self, image_path, x, y) :
-        """ Player Settings """
         self.original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
         self.image_normal = pygame.transform.scale(self.original_image, (100, 200))
         self.sliding_height = 80
@@ -65,14 +65,12 @@ class Player :
         self.sliding = False
 
     def handle_input(self, keys) :
-        """ Input Receiver """
         global game_started
         if not game_over :
             if keys[pygame.K_SPACE] and self.on_ground and not self.sliding :
                 self.velocity = self.jump_strength
                 self.on_ground = False
                 game_started = True
-
             if keys[pygame.K_s] or keys[pygame.K_DOWN] :
                 if not self.sliding and self.on_ground :
                     self.sliding = True
@@ -85,7 +83,6 @@ class Player :
                     self.obstacle.bottom = base.top
 
     def apply_gravity(self, terrain, dt) :
-        """ Jumping physics """
         self.velocity += self.gravity * dt
         self.obstacle.y += self.velocity * dt
 
@@ -104,7 +101,6 @@ class Player :
             self.velocity = 0
 
     def reset(self) :
-        """ Reset player """
         self.obstacle.midbottom = (self.start_x, self.start_y)
         self.velocity = 0
         self.on_ground = True
@@ -113,12 +109,10 @@ class Player :
         self.sliding = False
 
     def create(self, surface) :
-        """ Draw player """
         surface.blit(self.image_slide if self.sliding else self.image_normal, self.obstacle)
 
 class Obstacle :
     def __init__(self, x, terrain_top) :
-        """ Obstacle Settings """
         self.type = random.randint(0, 4)
         self.hanging = self.type == 2
         self.top_half_hitbox = self.type == 1
@@ -127,7 +121,6 @@ class Obstacle :
         self.reset(x, terrain_top)
 
     def reset(self, x, terrain_top) :
-        """ Reset Obstacle """
         if self.type in [0, 1] :
             self.image = obstacle_images[self.type]["medium"]
         elif self.type == 3 :
@@ -143,26 +136,21 @@ class Obstacle :
             self.obstacle = self.image.get_rect(midbottom=(x, terrain_top))
 
     def move(self, dt) :
-        """ Move Obstacle """
         if not game_over and self.active and game_started :
             self.obstacle.x -= self.speed * dt
-
         if self.obstacle.right < 0 :
             spawn_obstacle(self)
 
     def create(self, surface) :
-        """ Draw Obstacle """
         surface.blit(self.image, self.obstacle)
 
     def hitbox(self) :
-        """ Obstacle Hitbox """
         if self.top_half_hitbox :
             return pygame.Rect(self.obstacle.x, self.obstacle.y, self.obstacle.width, self.obstacle.height // 2)
         return self.obstacle
 
 class Roof :
     def __init__(self, image_path, x, y) :
-        """ Roof Settings """
         original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
         self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
         self.roof = [
@@ -173,29 +161,24 @@ class Roof :
         self.active = True
 
     def move(self, dt) :
-        """ Move roofs """
         if not game_over and self.active and game_started :
             for i in range(2)  :
                 self.roof[i].x -= self.speed * dt
-
             if self.roof[0].right <= 0 :
                 self.roof[0].x = self.roof[1].right
             if self.roof[1].right <= 0 :
                 self.roof[1].x = self.roof[0].right
 
     def create(self, surface) :
-        """ Draw both roofs """
         for i in self.roof :
             surface.blit(self.texture, i)
 
     @property
     def bottom(self) :
-        """ Return the bottom y of the roof """
         return self.roof[0].bottom
 
 class Terrain :
     def __init__(self, image_path, x, y) :
-        """ Terrain Settings """
         original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
         self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
         self.terrain = [
@@ -206,25 +189,42 @@ class Terrain :
         self.speed = 600
 
     def move(self, dt) :
-        """ Move both terrain """
         if not game_over and self.active and game_started :
             for i in range(2)  :
                 self.terrain[i].x -= self.speed * dt
-
             if self.terrain[0].right <= 0 :
                 self.terrain[0].x = self.terrain[1].right
             if self.terrain[1].right <= 0 :
                 self.terrain[1].x = self.terrain[0].right
 
     def create(self, surface) :
-        """ Draw terrain """
         for i in self.terrain :
             surface.blit(self.texture, i)
 
     @property
     def top(self) :
-        """ Return the y of terrain top """
         return self.terrain[0].top
+
+class Boss:
+    def __init__(self, image_path, terrain_top):
+        self.original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
+        self.image = pygame.transform.scale(self.original_image, (150, 200))
+        self.rect = self.image.get_rect(bottomright=(SCREEN_WIDTH - 50, terrain_top))
+        self.hp = 10
+        self.active = True
+
+    def create(self, surface):
+        if self.active:
+            surface.blit(self.image, self.rect)
+
+    def hit(self):
+        self.hp -= 1
+        if self.hp <= 0:
+            self.active = False
+            global boss_active
+            boss_active = False
+
+boss = None
 
 """ Game Settings """
 above = Roof(roof_image, 0, -675)
@@ -233,6 +233,9 @@ player = Player(player_image, 100, base.top)
 game_over = False
 game_started = False
 score = 0
+boss_score_thresholds = [2000, 4000, 6000]
+current_boss_index = 0
+boss_active = False
 
 obstacles = []
 x = 1100
@@ -241,7 +244,6 @@ for _ in range(num_obstacles) :
     x += random.randint(550, 700)
 
 def spawn_obstacle(obs) :
-    """ Spawn manager """
     obs.type = random.randint(0, 4)
     obs.hanging = obs.type == 2
     obs.top_half_hitbox = obs.type == 1
@@ -250,8 +252,7 @@ def spawn_obstacle(obs) :
     obs.reset(new_x, base.top)
 
 def reset_game() :
-    """ Reset all game stats """
-    global game_over, game_started, score
+    global game_over, game_started, score, current_boss_index, boss_active, boss
     player.reset()
     x = 1100
     for obs in obstacles :
@@ -266,6 +267,9 @@ def reset_game() :
     game_over = False
     game_started = False
     score = 0
+    current_boss_index = 0
+    boss_active = False
+    boss = None
 
 """ Main Attraction """
 running = True
@@ -277,9 +281,18 @@ while running :
         if event.type == pygame.QUIT or keys[pygame.K_ESCAPE] :
             running = False
 
-    if game_started and not game_over :
+    # Score update (หยุดถ้ามีบอส)
+    if game_started and not game_over and not boss_active:
         score += dt * 100
 
+    # Spawn boss
+    if current_boss_index < len(boss_score_thresholds):
+        if score >= boss_score_thresholds[current_boss_index] and not boss_active:
+            boss = Boss(boss_image_path, base.top)
+            boss_active = True
+            current_boss_index += 1
+
+    # Reset game
     if game_over and keys[pygame.K_r] :
         reset_game()
 
@@ -297,13 +310,19 @@ while running :
         if obs.obstacle.right > 0 :
             obs.move(dt)
             obs.create(screen)
-
             if player.obstacle.colliderect(obs.hitbox()) and not game_over :
                 game_over = True
                 for ob in obstacles :
                     ob.active = False
                 base.active = False
                 player.collision = True
+
+    # Draw boss
+    if boss_active and boss is not None:
+        boss.create(screen)
+        # Example hit (กลุ่มอื่นจะทำระบบยิง)
+        if keys[pygame.K_f]:
+            boss.hit()
 
     score_text = font.render(f"Score  : {str(int(score)).zfill(5)}", True, WHITE)
     screen.blit(score_text, (1050, 50))
