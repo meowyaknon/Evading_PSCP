@@ -20,6 +20,8 @@ BTN_HOVER = (70, 80, 92)
 icon_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", "cats.jpg"))
 terrain_image = "floor.jpg"
 player_image = "cats.jpg"
+player_jump_image = "cats.jpg"  # Image for jumping state
+player_slide_image = "cats.jpg"  # Image for sliding state
 roof_image = "roof.jpg"
 boss_image_path = "amongus.png"
 background_image_path = "pixel-grass-ground-and-stone-blocks-pattern-cubic-pixel-game-background-8bit-gaming-interface-2d-technology-retro-wallpaper-or-backdrop-with-soil-2H5J94K.jpg"
@@ -144,14 +146,30 @@ class StageText:
         surface.blit(text_surf, text_rect)
 
 class Player:
-    def __init__(self, image_path, x, y):
+    def __init__(self, image_path, x, y, jump_image_path=None, slide_image_path=None):
         self.original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
-        self.image_normal = pygame.transform.scale(self.original_image, (100, 200))
-        self.sliding_height = 80
-        self.image_slide = pygame.transform.scale(self.original_image, (175, self.sliding_height))
+        self.normal_width = 100
+        self.jumping_width = 120
+        self.image_normal = pygame.transform.scale(self.original_image, (self.normal_width, 200))
+        
+        if jump_image_path:
+            jump_img = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", jump_image_path)).convert_alpha()
+            self.jumping_height = 180
+            self.image_jump = pygame.transform.scale(jump_img, (self.jumping_width, self.jumping_height))
+        else:
+            self.jumping_height = 180
+            self.image_jump = pygame.transform.scale(self.original_image, (self.jumping_width, self.jumping_height))
+        
+        if slide_image_path:
+            slide_img = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", slide_image_path)).convert_alpha()
+            self.sliding_height = 80
+            self.image_slide = pygame.transform.scale(slide_img, (175, self.sliding_height))
+        else:
+            self.sliding_height = 80
+            self.image_slide = pygame.transform.scale(self.original_image, (175, self.sliding_height))
         self.start_x, self.start_y = x, y
         self.obstacle = self.image_normal.get_rect(midbottom=(x, y))
-        self.normal_height = self.obstacle.height
+        self.normal_height = 200
         self.velocity = 0
         self.gravity = 2500
         self.jump_strength = -1100
@@ -173,7 +191,7 @@ class Player:
                     self.obstacle.height = self.sliding_height
                     self.obstacle.bottom = base.top
             else:
-                if self.sliding:
+                if self.sliding and self.on_ground:
                     self.sliding = False
                     self.obstacle.height = self.normal_height
                     self.obstacle.bottom = base.top
@@ -181,11 +199,33 @@ class Player:
     def apply_gravity(self, terrain, dt):
         self.velocity += self.gravity * dt
         self.obstacle.y += self.velocity * dt
+        
+        if not self.on_ground and not self.sliding:
+            if self.obstacle.height != self.jumping_height or self.obstacle.width != self.jumping_width:
+                current_bottom = self.obstacle.bottom
+                current_centerx = self.obstacle.centerx
+                self.obstacle.height = self.jumping_height
+                self.obstacle.width = self.jumping_width
+                self.obstacle.bottom = current_bottom
+                self.obstacle.centerx = current_centerx
+        elif self.on_ground and not self.sliding and (self.obstacle.height != self.normal_height or self.obstacle.width != self.normal_width):
+            current_bottom = self.obstacle.bottom
+            current_centerx = self.obstacle.centerx
+            self.obstacle.height = self.normal_height
+            self.obstacle.width = self.normal_width
+            self.obstacle.bottom = current_bottom
+            self.obstacle.centerx = current_centerx
+            
         if not self.falling:
             if self.obstacle.bottom >= terrain.top:
                 self.obstacle.bottom = terrain.top
                 self.velocity = 0
                 self.on_ground = True
+                if not self.sliding:
+                    current_centerx = self.obstacle.centerx
+                    self.obstacle.height = self.normal_height
+                    self.obstacle.width = self.normal_width
+                    self.obstacle.centerx = current_centerx
         if self.collision:
             self.velocity = -1200
             self.collision = False
@@ -195,6 +235,8 @@ class Player:
 
     def reset(self):
         self.obstacle.midbottom = (self.start_x, self.start_y)
+        self.obstacle.width = self.normal_width
+        self.obstacle.height = self.normal_height
         self.velocity = 0
         self.on_ground = True
         self.falling = False
@@ -202,7 +244,13 @@ class Player:
         self.sliding = False
 
     def create(self, surface):
-        surface.blit(self.image_slide if self.sliding else self.image_normal, self.obstacle)
+        if self.sliding:
+            image_to_blit = self.image_slide
+        elif not self.on_ground:
+            image_to_blit = self.image_jump
+        else:
+            image_to_blit = self.image_normal
+        surface.blit(image_to_blit, self.obstacle)
 
 class Obstacle:
     def __init__(self, x, terrain_top):
@@ -352,7 +400,7 @@ background_image = pygame.transform.scale(background_image, (SCREEN_WIDTH, SCREE
 
 above = Roof(roof_image, 0, -675)
 base = Terrain(terrain_image, 0, 650)
-player = Player(player_image, 100, base.top)
+player = Player(player_image, 100, base.top, player_jump_image, player_slide_image)
 
 obstacles = []
 x = 1100
