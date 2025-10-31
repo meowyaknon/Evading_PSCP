@@ -63,11 +63,15 @@ state = MENU
 
 game_over = False
 game_started = False
+prev_game_started = False
 score = 0
-boss_score_thresholds = [1000, 4000, 6000]
+boss_score_thresholds = [500, 800, 1000]
 current_boss_index = 0
 boss_active = False
 boss = None
+stage_text = None
+stage_text_timer = 0
+stage_text_duration = 2.0
 
 # ------------------------- Utilities -------------------------
 def draw_center_text(text, font_obj, color, y):
@@ -90,6 +94,55 @@ def make_button(text, center_x, center_y, padding=(28, 14)):
     return rect, draw
 
 # ------------------------- Classes -------------------------
+class StageText:
+    def __init__(self, stage_num=None, custom_text=None):
+        if custom_text:
+            self.text = custom_text
+        else:
+            self.stage_num = stage_num
+            self.text = f"Stage {stage_num}"
+        self.x = -500
+        self.target_x = SCREEN_WIDTH // 2
+        self.y = SCREEN_HEIGHT // 2
+        self.speed = 2000
+        self.active = True
+        self.display_timer = 0
+        self.display_duration = 2.0
+        
+    def update(self, dt):
+        if not self.active:
+            return
+            
+        if self.x < self.target_x:
+            # Slide in
+            self.x += self.speed * dt
+            if self.x > self.target_x:
+                self.x = self.target_x
+        elif self.x == self.target_x:
+            # Display at center
+            self.display_timer += dt
+            if self.display_timer >= self.display_duration:
+                # Start sliding out
+                self.target_x = SCREEN_WIDTH + 500
+        else:
+            # Slide out
+            self.x += self.speed * dt
+            if self.x > SCREEN_WIDTH + 500:
+                self.active = False
+    
+    def draw(self, surface):
+        if not self.active:
+            return
+            
+        stage_font = pygame.font.Font(None, 80)
+        text_surf = stage_font.render(self.text, True, WHITE)
+        text_rect = text_surf.get_rect(center=(self.x, self.y))
+        
+        shadow_surf = stage_font.render(self.text, True, BLACK)
+        shadow_rect = shadow_surf.get_rect(center=(self.x + 3, self.y + 3))
+        surface.blit(shadow_surf, shadow_rect)
+        surface.blit(text_surf, text_rect)
+
 class Player:
     def __init__(self, image_path, x, y):
         self.original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
@@ -286,8 +339,12 @@ class Boss:
         self.hp -= 1
         if self.hp <= 0:
             self.active = False
-            global boss_active
+            global boss_active, stage_text, current_boss_index
             boss_active = False
+            if current_boss_index == 3:
+                stage_text = StageText(custom_text="Endless")
+            elif current_boss_index <= 2:
+                stage_text = StageText(current_boss_index + 1)
 
 # ------------------------- Game Objects -------------------------
 background_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", background_image_path)).convert()
@@ -312,7 +369,7 @@ def spawn_obstacle(obs):
     obs.reset(new_x, base.top)
 
 def reset_game():
-    global game_over, game_started, score, current_boss_index, boss_active, boss
+    global game_over, game_started, prev_game_started, score, current_boss_index, boss_active, boss, stage_text
     player.reset()
     x = 1100
     for obs in obstacles:
@@ -326,10 +383,12 @@ def reset_game():
     random.shuffle(obstacles)
     game_over = False
     game_started = False
+    prev_game_started = False
     score = 0
     current_boss_index = 0
     boss_active = False
     boss = None
+    stage_text = None
 
 # ------------------------- UI Buttons -------------------------
 btn_start_rect, btn_start_draw = make_button("Start Game", SCREEN_WIDTH//2, SCREEN_HEIGHT//2 - 50)
@@ -410,12 +469,21 @@ while running:
 
     # ------------------------- GAME -------------------------
     elif state == GAME:
+        if game_started and not prev_game_started:
+            stage_text = StageText(1)
+        prev_game_started = game_started
+        
+        if stage_text is not None:
+            stage_text.update(dt)
+            if not stage_text.active:
+                stage_text = None
+        
         if game_started:
             screen.blit(background_image, (0, 0))
         else:
             screen.fill(BG)
         
-        if game_started and not game_over:
+        if game_started and not game_over and not boss_active:
             score += dt*100
 
         if current_boss_index < len(boss_score_thresholds):
@@ -455,14 +523,17 @@ while running:
 
         score_text = font.render(f"Score  : {str(int(score)).zfill(5)}", True, WHITE)
         screen.blit(score_text, (1050, 50))
+        
+        if stage_text is not None:
+            stage_text.draw(screen)
 
         if game_over:
             overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 160))
             screen.blit(overlay, (0, 0))
 
-            draw_center_text("Game Over", font, WHITE, SCREEN_HEIGHT//2 - 80)
-            draw_center_text(f"Score: {int(score)}", font_small, MUTED, SCREEN_HEIGHT//2 - 20)
+            draw_center_text("Game Over", font, WHITE, SCREEN_HEIGHT//2 - 120)
+            draw_center_text(f"Score: {int(score)}", font_small, MUTED, SCREEN_HEIGHT//2 - 60)
 
             btn_restart_draw(mouse_pos)
             btn_return_draw(mouse_pos)
