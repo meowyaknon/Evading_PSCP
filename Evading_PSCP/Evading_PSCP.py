@@ -66,6 +66,8 @@ state = MENU
 game_over = False
 game_started = False
 prev_game_started = False
+has_gun = False
+ammo = 0
 score = 0
 boss_score_thresholds = [500, 800, 1000]
 current_boss_index = 0
@@ -177,6 +179,7 @@ class Player:
         self.falling = False
         self.collision = False
         self.sliding = False
+        self.has_gun = False
 
     def handle_input(self, keys):
         global game_started
@@ -348,7 +351,7 @@ class Terrain:
 class Boss:
     def __init__(self, image_path, terrain_top):
         self.original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
-        self.image = pygame.transform.scale(self.original_image, (150, 200))
+        self.image = pygame.transform.scale(self.original_image, (250, 300))
         self.rect = self.image.get_rect(bottomright=(SCREEN_WIDTH - 50, terrain_top))
         self.max_hp = 10
         self.hp = self.max_hp
@@ -384,7 +387,7 @@ class Boss:
             surface.blit(health_text, text_rect)
 
     def hit(self):
-        self.hp -= 1
+        self.hp -= 2
         if self.hp <= 0:
             self.active = False
             global boss_active, stage_text, current_boss_index
@@ -394,9 +397,45 @@ class Boss:
             elif current_boss_index <= 2:
                 stage_text = StageText(current_boss_index + 1)
 
+class Bullet(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((20, 8))
+        self.image.fill((255, 230, 90))
+        self.rect = self.image.get_rect(midleft=(x, y))
+        self.speed = 1000
+
+    def update(self, dt):
+        self.rect.x += self.speed * dt
+        if self.rect.left > SCREEN_WIDTH:
+            self.kill()
+
+        pass
+
+class Gunpickup(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", "sniper.png")).convert_alpha()
+        self.image = pygame.transform.scale(self.image, (75, 50))
+        self.rect = self.image.get_rect(center=(x, y))
+        self.speed = 600
+
+    def update(self, dt):
+        if not game_over :
+            self.rect.x -= self.speed * dt
+            if self.rect.right < 0:
+                self.kill()
+
 # ------------------------- Game Objects -------------------------
 background_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", background_image_path)).convert()
 background_image = pygame.transform.scale(background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
+
+bullets = pygame.sprite.Group()
+shoot_cooldown = 0.3
+shoot_timer = 0
+guns = pygame.sprite.Group()
+gun_spawn_timer = 0
+gun_spawn_interval = 6
 
 above = Roof(roof_image, 0, -675)
 base = Terrain(terrain_image, 0, 650)
@@ -417,7 +456,7 @@ def spawn_obstacle(obs):
     obs.reset(new_x, base.top)
 
 def reset_game():
-    global game_over, game_started, prev_game_started, score, current_boss_index, boss_active, boss, stage_text
+    global game_over, game_started, prev_game_started, score, current_boss_index, boss_active, boss, stage_text, ammo
     player.reset()
     x = 1100
     for obs in obstacles:
@@ -433,6 +472,7 @@ def reset_game():
     game_started = False
     prev_game_started = False
     score = 0
+    ammo = 0
     current_boss_index = 0
     boss_active = False
     boss = None
@@ -520,17 +560,17 @@ while running:
         if game_started and not prev_game_started:
             stage_text = StageText(1)
         prev_game_started = game_started
-        
+
         if stage_text is not None:
             stage_text.update(dt)
             if not stage_text.active:
                 stage_text = None
-        
+
         if game_started:
             screen.blit(background_image, (0, 0))
         else:
             screen.fill(BG)
-        
+
         if game_started and not game_over and not boss_active:
             score += dt*100
 
@@ -566,12 +606,48 @@ while running:
         if boss_active and boss is not None:
             boss.create(screen)
             boss.draw_health_bar(screen)
-            if keys[pygame.K_f]:
-                boss.hit()
+
+        # ---------------- ระบบสุ่มเกิดปืน ----------------
+        gun_spawn_timer += dt
+        if gun_spawn_timer >= gun_spawn_interval and not game_over:
+            gun_y = base.top - 50
+            gun_x = SCREEN_WIDTH + 100
+            guns.add(Gunpickup(gun_x, gun_y))
+            gun_spawn_timer = 0
+
+        guns.update(dt)
+        guns.draw(screen)
+
+        # Check get gun
+        for gun in guns:
+            if player.obstacle.colliderect(gun.rect):
+                player.has_gun = True
+                ammo += 5
+                gun.kill()
+        # Shooting
+        shoot_timer -= dt
+        if player.has_gun and keys[pygame.K_f] and shoot_timer <= 0 and not game_over:
+            if ammo > 0:
+                bullet_y = player.obstacle.centery
+                bullet_x = player.obstacle.right
+                bullets.add(Bullet(bullet_x, bullet_y))
+                shoot_timer = shoot_cooldown
+                ammo -= 1
+
+        bullets.update(dt)
+        bullets.draw(screen)
+
+        # hit boss
+        if boss_active and boss is not None:
+            for bullet in bullets:
+                if boss.rect.colliderect(bullet.rect):
+                    boss.hit()
+                    bullet.kill()
 
         score_text = font.render(f"Score  : {str(int(score)).zfill(5)}", True, WHITE)
         screen.blit(score_text, (1050, 50))
-        
+        ammo_text = font.render(f"Ammo : {str(int(ammo)).zfill(3)}", True, WHITE)
+        screen.blit(ammo_text, (75, 50))
         if stage_text is not None:
             stage_text.draw(screen)
 
