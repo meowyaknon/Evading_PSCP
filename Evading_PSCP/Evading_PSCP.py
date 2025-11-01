@@ -1,6 +1,7 @@
 import pygame
 import random
 import os
+import math
 
 """ Basic Settings """
 SCREEN_WIDTH = 1400
@@ -56,7 +57,7 @@ for path in obstacle_images_paths:
     }
     obstacle_images.append(scaled_versions)
 
-""" Game States """
+""" Game Settings """
 MENU = "MENU"
 CONTROLS = "CONTROLS"
 START_PROMPT = "START_PROMPT"
@@ -66,18 +67,44 @@ state = MENU
 game_over = False
 game_started = False
 prev_game_started = False
-has_gun = False
-ammo = 0
+has_gun = True
+slide_key_held = False 
+ammo = 8 
+max_ammo = 8
+reloading = False
+reload_time = 0
+reload_duration = 2.0 
 score = 0
-boss_score_thresholds = [500, 800, 1000]
+boss_score_thresholds = [1000, 2300, 4200]
 current_boss_index = 0
 boss_active = False
+boss_spawning = False 
 boss = None
 stage_text = None
 stage_text_timer = 0
 stage_text_duration = 2.0
+boss_point_rewards = [300, 500, 700] 
+obstacles_reset_after_boss = False 
 
 # ------------------------- Utilities -------------------------
+
+def line_segment_intersect(x1, y1, x2, y2, x3, y3, x4, y4):
+    """Check if two line segments intersect using parametric form."""
+    dx1 = x2 - x1
+    dy1 = y2 - y1
+    dx2 = x4 - x3
+    dy2 = y4 - y3
+    
+    denom = dx1 * dy2 - dy1 * dx2
+    
+    if abs(denom) < 0.0001:
+        return False
+    
+    t = ((x3 - x1) * dy2 - (y3 - y1) * dx2) / denom
+    u = ((x3 - x1) * dy1 - (y3 - y1) * dx1) / denom
+    
+    return 0 <= t <= 1 and 0 <= u <= 1
+
 def draw_center_text(text, font_obj, color, y):
     surf = font_obj.render(text, True, color)
     rect = surf.get_rect(center=(SCREEN_WIDTH // 2, y))
@@ -118,18 +145,14 @@ class StageText:
             return
             
         if self.x < self.target_x:
-            # Slide in
             self.x += self.speed * dt
             if self.x > self.target_x:
                 self.x = self.target_x
         elif self.x == self.target_x:
-            # Display at center
             self.display_timer += dt
             if self.display_timer >= self.display_duration:
-                # Start sliding out
                 self.target_x = SCREEN_WIDTH + 500
         else:
-            # Slide out
             self.x += self.speed * dt
             if self.x > SCREEN_WIDTH + 500:
                 self.active = False
@@ -151,7 +174,7 @@ class Player:
     def __init__(self, image_path, x, y, jump_image_path=None, slide_image_path=None):
         self.original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
         self.normal_width = 100
-        self.jumping_width = 120
+        self.jumping_width = 130
         self.image_normal = pygame.transform.scale(self.original_image, (self.normal_width, 200))
         
         if jump_image_path:
@@ -180,21 +203,48 @@ class Player:
         self.collision = False
         self.sliding = False
         self.has_gun = False
+        self.move_speed = 400
 
-    def handle_input(self, keys):
-        global game_started
+    def handle_input(self, keys, dt, boss_fight=False):
+        global game_started, slide_key_held
         if not game_over:
-            if keys[pygame.K_SPACE] and self.on_ground and not self.sliding:
-                self.velocity = self.jump_strength
-                self.on_ground = False
-                game_started = True
-            if keys[pygame.K_s] or keys[pygame.K_DOWN]:
-                if not self.sliding and self.on_ground:
+            if boss_fight:
+                if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+                    self.obstacle.x -= self.move_speed * dt
+                    self.obstacle.x = max(0, self.obstacle.x)
+                if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+                    self.obstacle.x += self.move_speed * dt
+                    self.obstacle.x = min(SCREEN_WIDTH - self.obstacle.width, self.obstacle.x)
+                if slide_key_held and not self.sliding:
+                    self.sliding = True
+                    current_bottom = self.obstacle.bottom
+                    current_centerx = self.obstacle.centerx
+                    self.obstacle.height = self.sliding_height
+                    self.obstacle.width = 17
+                    self.obstacle.bottom = current_bottom
+                    self.obstacle.centerx = current_centerx
+                    if self.on_ground:
+                        self.obstacle.bottom = base.top
+                elif not slide_key_held and self.sliding:
+                    self.sliding = False
+                    current_bottom = self.obstacle.bottom
+                    current_centerx = self.obstacle.centerx
+                    if self.on_ground:
+                        self.obstacle.height = self.normal_height
+                        self.obstacle.width = self.normal_width
+                        self.obstacle.bottom = base.top
+                        self.obstacle.centerx = current_centerx
+                    else:
+                        self.obstacle.height = self.jumping_height
+                        self.obstacle.width = self.jumping_width
+                        self.obstacle.bottom = current_bottom
+                        self.obstacle.centerx = current_centerx
+            else:
+                if slide_key_held and not self.sliding and self.on_ground:
                     self.sliding = True
                     self.obstacle.height = self.sliding_height
                     self.obstacle.bottom = base.top
-            else:
-                if self.sliding and self.on_ground:
+                elif not slide_key_held and self.sliding and self.on_ground:
                     self.sliding = False
                     self.obstacle.height = self.normal_height
                     self.obstacle.bottom = base.top
@@ -203,14 +253,23 @@ class Player:
         self.velocity += self.gravity * dt
         self.obstacle.y += self.velocity * dt
         
-        if not self.on_ground and not self.sliding:
-            if self.obstacle.height != self.jumping_height or self.obstacle.width != self.jumping_width:
-                current_bottom = self.obstacle.bottom
-                current_centerx = self.obstacle.centerx
-                self.obstacle.height = self.jumping_height
-                self.obstacle.width = self.jumping_width
-                self.obstacle.bottom = current_bottom
-                self.obstacle.centerx = current_centerx
+        if not self.on_ground:
+            if self.sliding:
+                if self.obstacle.height != self.sliding_height or self.obstacle.width != 175:
+                    current_bottom = self.obstacle.bottom
+                    current_centerx = self.obstacle.centerx
+                    self.obstacle.height = self.sliding_height
+                    self.obstacle.width = 175
+                    self.obstacle.bottom = current_bottom
+                    self.obstacle.centerx = current_centerx
+            else:
+                if self.obstacle.height != self.jumping_height or self.obstacle.width != self.jumping_width:
+                    current_bottom = self.obstacle.bottom
+                    current_centerx = self.obstacle.centerx
+                    self.obstacle.height = self.jumping_height
+                    self.obstacle.width = self.jumping_width
+                    self.obstacle.bottom = current_bottom
+                    self.obstacle.centerx = current_centerx
         elif self.on_ground and not self.sliding and (self.obstacle.height != self.normal_height or self.obstacle.width != self.normal_width):
             current_bottom = self.obstacle.bottom
             current_centerx = self.obstacle.centerx
@@ -279,10 +338,19 @@ class Obstacle:
             self.obstacle = self.image.get_rect(midbottom=(x, terrain_top))
 
     def move(self, dt):
+        global boss_spawning, boss_active
+        if boss_spawning or boss_active:
+            if not game_over and self.active and game_started:
+                if not boss_active:
+                    self.obstacle.x -= self.speed * dt
+            return
+        
         if not game_over and self.active and game_started:
             self.obstacle.x -= self.speed * dt
+                
         if self.obstacle.right < 0:
-            spawn_obstacle(self)
+            if not boss_spawning and not boss_active:
+                spawn_obstacle(self)
 
     def create(self, surface):
         surface.blit(self.image, self.obstacle)
@@ -348,6 +416,74 @@ class Terrain:
     def top(self):
         return self.terrain[0].top
 
+class LaserWarning:
+    """Preview/shadow showing where a laser will appear"""
+    def __init__(self, start_x, start_y, target_x, target_y):
+        self.start_pos = (start_x, start_y)
+        self.target_pos = (target_x, target_y)
+        self.width = 15
+        self.age = 0
+        self.warning_duration = 0.8
+        
+    def update(self, dt):
+        self.age += dt
+        
+    def draw(self, surface):
+        if self.age < self.warning_duration:
+            alpha = int(128 + 127 * math.sin(self.age * 10))
+            color = (255, 255, 0)
+            
+            temp_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            
+            steps = 20
+            dx = (self.target_pos[0] - self.start_pos[0]) / steps
+            dy = (self.target_pos[1] - self.start_pos[1]) / steps
+            for i in range(0, steps, 2):  
+                start_idx = i
+                end_idx = min(i + 1, steps)
+                seg_start = (int(self.start_pos[0] + dx * start_idx), int(self.start_pos[1] + dy * start_idx))
+                seg_end = (int(self.start_pos[0] + dx * end_idx), int(self.start_pos[1] + dy * end_idx))
+                pygame.draw.line(temp_surface, (*color, alpha), seg_start, seg_end, self.width)
+            
+            surface.blit(temp_surface, (0, 0))
+            
+    def is_complete(self):
+        return self.age >= self.warning_duration
+
+class BossLaser(pygame.sprite.Sprite):
+    def __init__(self, start_x, start_y, target_x, target_y):
+        super().__init__()
+        self.start_pos = (start_x, start_y)
+        self.target_pos = (target_x, target_y)
+        self.width = 15
+        self.color = (255, 0, 0)
+        self.lifetime = 0.5
+        self.age = 0
+        
+    def update(self, dt):
+        self.age += dt
+        if self.age >= self.lifetime:
+            self.kill()
+    
+    def draw(self, surface):
+        if self.age < self.lifetime:
+            pygame.draw.line(surface, self.color, self.start_pos, self.target_pos, self.width)
+
+class BossBullet(pygame.sprite.Sprite):
+    def __init__(self, x, y, velocity_x, velocity_y):
+        super().__init__()
+        self.image = pygame.Surface((12, 12))
+        self.image.fill((255, 100, 100))
+        self.rect = self.image.get_rect(center=(x, y))
+        self.velocity_x = velocity_x
+        self.velocity_y = velocity_y
+        
+    def update(self, dt):
+        self.rect.x += self.velocity_x * dt
+        self.rect.y += self.velocity_y * dt
+        if self.rect.right < 0 or self.rect.left > SCREEN_WIDTH or self.rect.bottom < 0 or self.rect.top > SCREEN_HEIGHT:
+            self.kill()
+
 class Boss:
     def __init__(self, image_path, terrain_top):
         self.original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
@@ -356,10 +492,166 @@ class Boss:
         self.max_hp = 10
         self.hp = self.max_hp
         self.active = True
+        self.attack_timer = 0
+        self.attack_cooldown = 2.0
+        self.lasers = []
+        self.laser_warnings = [] 
+        self.bullets = pygame.sprite.Group()
+        self.smg_burst_count = 0 
+        self.smg_burst_delay = 0.1
+        self.smg_timer = 0
+        self.animation_timer = 0
+        self.appearing = True
+        self.appear_duration = 1.5
+        self.start_x = SCREEN_WIDTH + 300
+        self.target_x = SCREEN_WIDTH - 50
+        self.current_x = self.start_x
+        self.grace_period = 0.5
+        self.grace_timer = 0
+        self.warning_timer = 0
+        self.warning_duration = 0.8 
+        self.pending_attack = None 
+        self.pending_laser_data = [] 
 
-    def create(self, surface):
+    def update(self, dt, player_rect):
+        if not self.active:
+            return
+            
+        if self.appearing:
+            self.animation_timer += dt
+            if self.animation_timer < self.appear_duration:
+                # Slide in from right
+                progress = self.animation_timer / self.appear_duration
+                self.current_x = self.start_x - (self.start_x - self.target_x) * progress
+                self.rect.right = self.current_x
+            else:
+                self.appearing = False
+                self.animation_timer = 0
+        
+        if not self.appearing:
+            if self.grace_timer < self.grace_period:
+                self.grace_timer += dt
+            else:
+                if self.smg_burst_count > 0:
+                    self.smg_timer += dt
+                    if self.smg_timer >= self.smg_burst_delay:
+                        self.smg_timer = 0
+                        self.smg_burst_count -= 1
+                        self.fire_smg_bullet(player_rect)
+                elif self.pending_attack is not None:
+                    self.warning_timer += dt
+                    for warning in self.laser_warnings:
+                        warning.age += dt
+                    if self.warning_timer >= self.warning_duration:
+                        self._execute_attack(player_rect)
+                        self.pending_attack = None
+                        self.warning_timer = 0
+                        self.pending_laser_data = []
+                else:
+                    self.attack_timer += dt
+                    if self.attack_timer >= self.attack_cooldown:
+                        self.attack_timer = 0
+                        self._start_attack(player_rect)
+        
+        self.bullets.update(dt)
+        
+    def fire_smg_bullet(self, player_rect):
+        laser_start_x = self.rect.centerx
+        laser_start_y = self.rect.top + 50  
+        
+        accuracy = 0.75 
+        offset_x = random.uniform(-100, 100) * (1 - accuracy)
+        offset_y = random.uniform(-100, 100) * (1 - accuracy)
+        
+        target_x = player_rect.centerx + offset_x
+        target_y = player_rect.centery + offset_y
+        
+        dir_x = target_x - laser_start_x
+        dir_y = target_y - laser_start_y
+        dist = (dir_x**2 + dir_y**2)**0.5
+        if dist > 0:
+            speed = 500  # Moderate speed
+            velocity_x = (dir_x / dist) * speed
+            velocity_y = (dir_y / dist) * speed
+            
+            bullet = BossBullet(laser_start_x, laser_start_y, velocity_x, velocity_y)
+            self.bullets.add(bullet)
+    
+    def _start_attack(self, player_rect):
+        attack_type = random.choice(["smg", "barrage"])
+        self.pending_attack = attack_type
+        
+        if attack_type == "barrage":
+            self._create_laser_warnings(player_rect)
+    
+    def _create_laser_warnings(self, player_rect):
+        barrage_count = 5
+        base_accuracy = 0.6 
+        
+        for i in range(barrage_count):
+            spread_angle = (i - barrage_count // 2) * 0.4 + random.uniform(-0.2, 0.2)
+            
+            dir_x = player_rect.centerx - self.rect.centerx
+            dir_y = player_rect.centery - self.rect.centery
+            dist = (dir_x**2 + dir_y**2)**0.5
+            if dist > 0:
+                dir_x /= dist
+                dir_y /= dist
+                
+                offset_x = random.uniform(-0.3, 0.3) * (1 - base_accuracy)
+                offset_y = random.uniform(-0.3, 0.3) * (1 - base_accuracy)
+                dir_x += offset_x
+                dir_y += offset_y
+                
+                new_dist = (dir_x**2 + dir_y**2)**0.5
+                if new_dist > 0:
+                    dir_x /= new_dist
+                    dir_y /= new_dist
+                
+                cos_a = math.cos(spread_angle)
+                sin_a = math.sin(spread_angle)
+                rotated_x = dir_x * cos_a - dir_y * sin_a
+                rotated_y = dir_x * sin_a + dir_y * cos_a
+                
+                target_dist = 2000
+                target_x = self.rect.centerx + rotated_x * target_dist
+                target_y = self.rect.centery + rotated_y * target_dist
+                
+                self.pending_laser_data.append({
+                    'start': (self.rect.centerx, self.rect.centery),
+                    'target': (target_x, target_y)
+                })
+                
+                warning = LaserWarning(self.rect.centerx, self.rect.centery, target_x, target_y)
+                self.laser_warnings.append(warning)
+    
+    def _execute_attack(self, player_rect):
+        """Execute the attack after warning phase"""
+        if self.pending_attack == "smg":
+            self.smg_burst_count = random.randint(3, 5)
+            self.smg_timer = 0
+            self.fire_smg_bullet(player_rect)
+        elif self.pending_attack == "barrage":
+            for laser_data in self.pending_laser_data:
+                laser = BossLaser(laser_data['start'][0], laser_data['start'][1], 
+                                 laser_data['target'][0], laser_data['target'][1])
+                self.lasers.append(laser)
+            self.laser_warnings.clear()
+            self.pending_laser_data = []
+    
+    def create(self, surface, dt):
         if self.active:
             surface.blit(self.image, self.rect)
+            for warning in self.laser_warnings[:]:
+                warning.draw(surface)
+                if warning.is_complete():
+                    self.laser_warnings.remove(warning)
+            for laser in self.lasers[:]:
+                laser.draw(surface)
+                laser.update(dt)
+                if laser.age >= laser.lifetime:
+                    self.lasers.remove(laser)
+            self.bullets.draw(surface)
 
     def draw_health_bar(self, surface):
         if self.active:
@@ -386,16 +678,34 @@ class Boss:
             text_rect = health_text.get_rect(center=(SCREEN_WIDTH // 2, bar_y + bar_height + 25))
             surface.blit(health_text, text_rect)
 
-    def hit(self):
+    def hit(self, player_ref=None, obstacles_ref=None, base_ref=None):
         self.hp -= 2
         if self.hp <= 0:
             self.active = False
-            global boss_active, stage_text, current_boss_index
+            global boss_active, stage_text, current_boss_index, score, boss_point_rewards, boss_spawning
             boss_active = False
+            boss_spawning = False
+            
+            if current_boss_index > 0 and current_boss_index <= len(boss_point_rewards):
+                score += boss_point_rewards[current_boss_index - 1]
+            
             if current_boss_index == 3:
                 stage_text = StageText(custom_text="Endless")
             elif current_boss_index <= 2:
                 stage_text = StageText(current_boss_index + 1)
+            
+            if player_ref is not None:
+                player_ref.reset()
+            
+            if obstacles_ref is not None and base_ref is not None:
+                x = 1100
+                for obs in obstacles_ref:
+                    obs.active = True
+                    obs.type = random.randint(0, 4)
+                    obs.hanging = obs.type == 2
+                    obs.top_half_hitbox = obs.type == 1
+                    obs.reset(x, base_ref.top)
+                    x += random.randint(550, 700)
 
 class Bullet(pygame.sprite.Sprite):
     def __init__(self, x, y):
@@ -421,7 +731,8 @@ class Gunpickup(pygame.sprite.Sprite):
         self.speed = 600
 
     def update(self, dt):
-        if not game_over :
+        global game_started
+        if not game_over and game_started:
             self.rect.x -= self.speed * dt
             if self.rect.right < 0:
                 self.kill()
@@ -448,15 +759,23 @@ for _ in range(num_obstacles):
     x += random.randint(550, 700)
 
 def spawn_obstacle(obs):
+    global boss_spawning, boss_active
+    if boss_spawning or boss_active:
+        obs.active = False
+        return
+    obs.active = True
     obs.type = random.randint(0, 4)
     obs.hanging = obs.type == 2
     obs.top_half_hitbox = obs.type == 1
-    farthest = max(ob.obstacle.right for ob in obstacles if ob is not obs)
-    new_x = max(SCREEN_WIDTH, farthest) + random.randint(550, 700)
+    farthest = SCREEN_WIDTH
+    for ob in obstacles:
+        if ob is not obs and ob.active:
+            farthest = max(farthest, ob.obstacle.right)
+    new_x = farthest + random.randint(550, 700)
     obs.reset(new_x, base.top)
 
 def reset_game():
-    global game_over, game_started, prev_game_started, score, current_boss_index, boss_active, boss, stage_text, ammo
+    global game_over, game_started, prev_game_started, score, current_boss_index, boss_active, boss, stage_text, ammo, boss_spawning, reloading, reload_time
     player.reset()
     x = 1100
     for obs in obstacles:
@@ -472,9 +791,12 @@ def reset_game():
     game_started = False
     prev_game_started = False
     score = 0
-    ammo = 0
+    ammo = max_ammo 
+    reloading = False
+    reload_time = 0
     current_boss_index = 0
     boss_active = False
+    boss_spawning = False
     boss = None
     stage_text = None
 
@@ -494,10 +816,69 @@ while running:
     dt = clock.tick(FPS)/1000
     mouse_pos = pygame.mouse.get_pos()
     keys = pygame.key.get_pressed()
-
+    
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        elif event.type == pygame.KEYDOWN:
+            if state == START_PROMPT and event.key == pygame.K_SPACE:
+                state = GAME
+                game_started = True
+            elif state == GAME and not game_over:
+                is_jump_key = (event.key == pygame.K_SPACE or event.key == pygame.K_w or event.key == pygame.K_UP)
+                
+                if is_jump_key:
+                    if not boss_active:
+                        if player.on_ground and not player.sliding:
+                            player.velocity = player.jump_strength
+                            player.on_ground = False
+                            game_started = True
+                    elif boss_active:
+                        if player.on_ground:
+                            player.velocity = player.jump_strength
+                            player.on_ground = False
+                
+                if event.key == pygame.K_s or event.key == pygame.K_DOWN:
+                    slide_key_held = True
+                    if not boss_active:
+                        if player.on_ground and not player.sliding:
+                            player.sliding = True
+                            player.obstacle.height = player.sliding_height
+                            player.obstacle.bottom = base.top
+                    elif boss_active:
+                        if not player.sliding:
+                            player.sliding = True
+                            current_bottom = player.obstacle.bottom
+                            current_centerx = player.obstacle.centerx
+                            player.obstacle.height = player.sliding_height
+                            player.obstacle.width = 175
+                            player.obstacle.bottom = current_bottom
+                            player.obstacle.centerx = current_centerx
+                            if player.on_ground:
+                                player.obstacle.bottom = base.top
+        elif event.type == pygame.KEYUP:
+            if state == GAME and not game_over:
+                if event.key == pygame.K_s or event.key == pygame.K_DOWN:
+                    slide_key_held = False
+                    if player.sliding:
+                        if not boss_active and player.on_ground:
+                            player.sliding = False
+                            player.obstacle.height = player.normal_height
+                            player.obstacle.bottom = base.top
+                        elif boss_active:
+                            player.sliding = False
+                            current_bottom = player.obstacle.bottom
+                            current_centerx = player.obstacle.centerx
+                            if player.on_ground:
+                                player.obstacle.height = player.normal_height
+                                player.obstacle.width = player.normal_width
+                                player.obstacle.bottom = base.top
+                                player.obstacle.centerx = current_centerx
+                            else:
+                                player.obstacle.height = player.jumping_height
+                                player.obstacle.width = player.jumping_width
+                                player.obstacle.bottom = current_bottom
+                                player.obstacle.centerx = current_centerx
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if state == MENU:
                 if btn_start_rect.collidepoint(mouse_pos):
@@ -530,9 +911,11 @@ while running:
     # ------------------------- CONTROLS -------------------------
     elif state == CONTROLS:
         draw_center_text("Controls", font, WHITE, 100)
-        draw_center_text("Space - Jump", font_small, MUTED, 250)
-        draw_center_text("S/Down - Slide", font_small, MUTED, 300)
+        draw_center_text("W / Space / Up - Jump", font_small, MUTED, 250)
+        draw_center_text("S / Down - Slide ", font_small, MUTED, 300)
         draw_center_text("F - Attack Boss", font_small, MUTED, 350)
+        draw_center_text("A / D or Left / Right - Move",  font_small, MUTED, 400)
+        draw_center_text("(Can only slide while jumping and use A / D to move during boss fight)", font_small, MUTED, 550)
         btn_back_draw(mouse_pos)
 
     # ------------------------- START PROMPT -------------------------
@@ -552,8 +935,6 @@ while running:
         
         draw_center_text("Press SPACE to Start!", font, WHITE, SCREEN_HEIGHT//2)
         btn_back_draw(mouse_pos)
-        if keys[pygame.K_SPACE]:
-            state = GAME
 
     # ------------------------- GAME -------------------------
     elif state == GAME:
@@ -571,16 +952,31 @@ while running:
         else:
             screen.fill(BG)
 
-        if game_started and not game_over and not boss_active:
+        if game_started and not game_over and not boss_active and not boss_spawning:
             score += dt*100
 
         if current_boss_index < len(boss_score_thresholds):
-            if score >= boss_score_thresholds[current_boss_index] and not boss_active:
+            if score >= boss_score_thresholds[current_boss_index] and not boss_active and not boss_spawning:
+                boss_spawning = True
+                for obs in obstacles[:]: 
+                    if obs.obstacle.right < 0 or obs.obstacle.left > SCREEN_WIDTH:
+                        obs.active = False
+        
+        if boss_spawning and not boss_active:
+            all_obstacles_cleared = True
+            for obs in obstacles:
+                if obs.active:
+                    if obs.obstacle.right > 0:
+                        all_obstacles_cleared = False
+                        break
+            
+            if all_obstacles_cleared:
                 boss = Boss(boss_image_path, base.top)
                 boss_active = True
+                boss_spawning = False
                 current_boss_index += 1
 
-        player.handle_input(keys)
+        player.handle_input(keys, dt, boss_fight=boss_active)
         player.apply_gravity(base, dt)
 
         if game_started:
@@ -591,63 +987,165 @@ while running:
         
         player.create(screen)
 
-        if game_started:
+        if game_started and not boss_active and not boss_spawning:
             for obs in obstacles:
-                if obs.obstacle.right > 0:
+                if obs.active:
                     obs.move(dt)
-                    obs.create(screen)
-                    if player.obstacle.colliderect(obs.hitbox()) and not game_over:
-                        game_over = True
-                        for ob in obstacles:
-                            ob.active = False
-                        base.active = False
-                        player.collision = True
+                    if obs.obstacle.right > 0:
+                        obs.create(screen)
+                        if player.obstacle.colliderect(obs.hitbox()) and not game_over:
+                            game_over = True
+                            for ob in obstacles:
+                                ob.active = False
+                            base.active = False
+                            player.collision = True
+        elif boss_spawning:
+            for obs in obstacles:
+                if obs.active:
+                    obs.move(dt)
+                    if obs.obstacle.right > 0:
+                        obs.create(screen)
+                        if player.obstacle.colliderect(obs.hitbox()) and not game_over:
+                            game_over = True
+                            for ob in obstacles:
+                                ob.active = False
+                            base.active = False
+                            player.collision = True
 
         if boss_active and boss is not None:
-            boss.create(screen)
+            boss.update(dt, player.obstacle)
+            boss.create(screen, dt)
             boss.draw_health_bar(screen)
+            
+            if boss.active and not boss.appearing and not game_over:
+                for laser in boss.lasers[:]:
+                    if laser.age >= laser.lifetime or laser.age < 0:
+                        continue
+                    
+                    player_rect = player.obstacle
+                    x1, y1 = laser.start_pos
+                    x2, y2 = laser.target_pos
+                    half_width = laser.width / 2
+                    
+                    dx = x2 - x1
+                    dy = y2 - y1
+                    line_len_sq = dx*dx + dy*dy
+                    
+                    if line_len_sq < 0.0001:
+                        expanded_rect = pygame.Rect(
+                            player_rect.left - half_width,
+                            player_rect.top - half_width,
+                            player_rect.width + laser.width,
+                            player_rect.height + laser.width
+                        )
+                        if expanded_rect.collidepoint(x1, y1):
+                            if not game_over:
+                                game_over = True
+                        continue
+                    
+                    corners = [
+                        (player_rect.left, player_rect.top),
+                        (player_rect.right, player_rect.top),
+                        (player_rect.right, player_rect.bottom),
+                        (player_rect.left, player_rect.bottom),
+                        (player_rect.centerx, player_rect.centery)
+                    ]
+                    
+                    min_dist_sq = float('inf')
+                    
+                    for px, py in corners:
+                        to_point_x = px - x1
+                        to_point_y = py - y1
+                        
+                        t = (to_point_x * dx + to_point_y * dy) / line_len_sq
+                        t = max(0, min(1, t)) 
+                        
+                        closest_x = x1 + t * dx
+                        closest_y = y1 + t * dy
+                        
+                        dist_x = px - closest_x
+                        dist_y = py - closest_y
+                        dist_sq = dist_x * dist_x + dist_y * dist_y
+                        min_dist_sq = min(min_dist_sq, dist_sq)
+                    
+                    intersects = False
+                    if line_segment_intersect(x1, y1, x2, y2, 
+                                             player_rect.left, player_rect.top, 
+                                             player_rect.right, player_rect.top):
+                        intersects = True
+                    elif line_segment_intersect(x1, y1, x2, y2,
+                                                 player_rect.right, player_rect.top,
+                                                 player_rect.right, player_rect.bottom):
+                        intersects = True
+                    elif line_segment_intersect(x1, y1, x2, y2,
+                                                 player_rect.right, player_rect.bottom,
+                                                 player_rect.left, player_rect.bottom):
+                        intersects = True
+                    elif line_segment_intersect(x1, y1, x2, y2,
+                                                 player_rect.left, player_rect.bottom,
+                                                 player_rect.left, player_rect.top):
+                        intersects = True
+                    
+                    if not intersects:
+                        if (player_rect.left <= x1 <= player_rect.right and 
+                            player_rect.top <= y1 <= player_rect.bottom):
+                            intersects = True
+                        elif (player_rect.left <= x2 <= player_rect.right and 
+                              player_rect.top <= y2 <= player_rect.bottom):
+                            intersects = True
+                    
+                    if intersects or min_dist_sq <= half_width * half_width:
+                        if not game_over:
+                            game_over = True
+                
+                for bullet in boss.bullets:
+                    if player.obstacle.colliderect(bullet.rect):
+                        if not game_over:
+                            game_over = True
+                        bullet.kill()
+            
 
-        # ---------------- ระบบสุ่มเกิดปืน ----------------
-        gun_spawn_timer += dt
-        if gun_spawn_timer >= gun_spawn_interval and not game_over:
-            gun_y = base.top - 50
-            gun_x = SCREEN_WIDTH + 100
-            guns.add(Gunpickup(gun_x, gun_y))
-            gun_spawn_timer = 0
-
-        guns.update(dt)
-        guns.draw(screen)
-
-        # Check get gun
-        for gun in guns:
-            if player.obstacle.colliderect(gun.rect):
-                player.has_gun = True
-                ammo += 5
-                gun.kill()
-        # Shooting
         shoot_timer -= dt
-        if player.has_gun and keys[pygame.K_f] and shoot_timer <= 0 and not game_over:
+        
+        if reloading:
+            reload_time += dt
+            if reload_time >= reload_duration:
+                ammo = max_ammo
+                reloading = False
+                reload_time = 0
+        
+        if ammo == 0 and not reloading:
+            reloading = True
+            reload_time = 0
+        
+        if keys[pygame.K_f] and shoot_timer <= 0 and not game_over and not reloading:
             if ammo > 0:
                 bullet_y = player.obstacle.centery
                 bullet_x = player.obstacle.right
                 bullets.add(Bullet(bullet_x, bullet_y))
                 shoot_timer = shoot_cooldown
                 ammo -= 1
+                if ammo == 0:
+                    reloading = True
+                    reload_time = 0
 
         bullets.update(dt)
         bullets.draw(screen)
 
-        # hit boss
         if boss_active and boss is not None:
             for bullet in bullets:
                 if boss.rect.colliderect(bullet.rect):
-                    boss.hit()
+                    boss.hit(player, obstacles, base) 
                     bullet.kill()
 
         score_text = font.render(f"Score  : {str(int(score)).zfill(5)}", True, WHITE)
         screen.blit(score_text, (1050, 50))
-        ammo_text = font.render(f"Ammo : {str(int(ammo)).zfill(3)}", True, WHITE)
-        screen.blit(ammo_text, (75, 50))
+        
+        if reloading:
+            ammo_text = font.render(f"Ammo : reloading.../{max_ammo}", True, (255, 200, 0))
+        else:
+            ammo_text = font.render(f"Ammo : {int(ammo)}/{max_ammo}", True, WHITE)
+        screen.blit(ammo_text, (10, 50))
         if stage_text is not None:
             stage_text.draw(screen)
 
