@@ -24,8 +24,12 @@ player_image = "cats.jpg"
 player_jump_image = "cats.jpg"  # Image for jumping state
 player_slide_image = "cats.jpg"  # Image for sliding state
 roof_image = "roof.jpg"
-boss_image_path = "amongus.png"
-background_image_path = "pixel-grass-ground-and-stone-blocks-pattern-cubic-pixel-game-background-8bit-gaming-interface-2d-technology-retro-wallpaper-or-backdrop-with-soil-2H5J94K.jpg"
+boss_image_path = "cats.jpg"
+background_image_paths = [
+    "pixel-grass-ground-and-stone-blocks-pattern-cubic-pixel-game-background-8bit-gaming-interface-2d-technology-retro-wallpaper-or-backdrop-with-soil-2H5J94K.jpg",  # Stage 0 - original background
+    "pixel-grass-ground-and-stone-blocks-pattern-cubic-pixel-game-background-8bit-gaming-interface-2d-technology-retro-wallpaper-or-backdrop-with-soil-2H5J94K.jpg",  # Stage 1 - can be replaced with different image
+    "pixel-grass-ground-and-stone-blocks-pattern-cubic-pixel-game-background-8bit-gaming-interface-2d-technology-retro-wallpaper-or-backdrop-with-soil-2H5J94K.jpg",  # Stage 2 - can be replaced with different image (also used for endless)
+]
 obstacle_images_paths = [
     "cats.jpg",
     "obstacle.jpg",  # top-half hitbox
@@ -170,6 +174,60 @@ class StageText:
         surface.blit(shadow_surf, shadow_rect)
         surface.blit(text_surf, text_rect)
 
+class BackgroundTransition:
+    """Handles animated background transitions between stages"""
+    def __init__(self):
+        self.transitioning = False
+        self.transition_timer = 0
+        self.transition_duration = 2.0  
+        self.current_bg_x = 0
+        self.next_bg_x = 0
+        self.current_background_index = 0
+        
+    def start_transition(self, current_bg, next_bg):
+        self.transitioning = True
+        self.transition_timer = 0
+        self.current_bg_image = current_bg
+        self.next_bg_image = next_bg
+        self.current_bg_x = 0
+        self.next_bg_x = SCREEN_WIDTH  
+        # Note: This instance variable is not used - global current_background_index is used instead
+        # self.current_background_index = (self.current_background_index + 1) % 3 
+        
+    def update(self, dt):
+        """Update transition animation"""
+        if not self.transitioning:
+            return
+            
+        self.transition_timer += dt
+        progress = min(1.0, self.transition_timer / self.transition_duration)
+        
+        eased_progress = 1 - (1 - progress) ** 3
+        
+        self.current_bg_x = -eased_progress * SCREEN_WIDTH
+        self.next_bg_x = SCREEN_WIDTH - eased_progress * SCREEN_WIDTH
+        
+        if progress >= 1.0:
+            self.transitioning = False
+            self.current_bg_x = 0
+            self.next_bg_x = 0
+    
+    def draw(self, surface, default_bg):
+        """Draw the background with transition effect"""
+        if self.transitioning:
+            surface.blit(self.current_bg_image, (self.current_bg_x, 0))
+            surface.blit(self.next_bg_image, (self.next_bg_x, 0))
+            if self.current_bg_x < 0:
+                surface.blit(self.next_bg_image, (self.current_bg_x + SCREEN_WIDTH, 0))
+            if self.next_bg_x > 0:
+                surface.blit(self.current_bg_image, (self.next_bg_x - SCREEN_WIDTH, 0))
+        else:
+            surface.blit(default_bg, (0, 0))
+    
+    def is_transitioning(self):
+        """Check if transition is in progress"""
+        return self.transitioning
+
 class Player:
     def __init__(self, image_path, x, y, jump_image_path=None, slide_image_path=None):
         self.original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
@@ -197,7 +255,7 @@ class Player:
         self.normal_height = 200
         self.velocity = 0
         self.gravity = 2500
-        self.jump_strength = -1100
+        self.jump_strength = -1125
         self.on_ground = True
         self.falling = False
         self.collision = False
@@ -214,9 +272,8 @@ class Player:
                     self.obstacle.x = max(0, self.obstacle.x)
                 if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
                     self.obstacle.x += self.move_speed * dt
-                    # Prevent player from going past the boss
                     if boss is not None and boss.active:
-                        max_x = boss.rect.left - self.obstacle.width - 10  # 10 pixel buffer
+                        max_x = boss.rect.left - self.obstacle.width - 10  
                         self.obstacle.x = min(max_x, self.obstacle.x)
                     else:
                         self.obstacle.x = min(SCREEN_WIDTH - self.obstacle.width, self.obstacle.x)
@@ -551,7 +608,7 @@ class HomingMissile(pygame.sprite.Sprite):
         self.image = self.base_image
         self.rect = self.image.get_rect(center=(x, y))
         self.speed = 400
-        self.turn_rate = 2.5  # Moderate turn rate - not too accurate (radians per second)
+        self.turn_rate = 2.5 
         dx = player_rect.centerx - x
         dy = player_rect.centery - y
         dist = (dx**2 + dy**2)**0.5
@@ -571,10 +628,10 @@ class HomingMissile(pygame.sprite.Sprite):
         dy = player_rect.centery - self.rect.centery
         dist = (dx**2 + dy**2)**0.5
         
-        close_distance_threshold = 100  # Only escape when actually very close
+        close_distance_threshold = 100 
         if dist < close_distance_threshold:
             if dist > 0:
-                away_from_player_x = -dx / dist  # Opposite direction from player
+                away_from_player_x = -dx / dist 
                 away_from_player_y = -dy / dist
             else:
                 away_from_player_x = random.uniform(-1, 1)
@@ -802,7 +859,7 @@ class Boss:
     def __init__(self, image_path, terrain_top, boss_index=0):
         self.original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
         self.image = pygame.transform.scale(self.original_image, (250, 300))
-        self.rect = self.image.get_rect(bottomright=(SCREEN_WIDTH - 50, terrain_top))
+        self.rect = self.image.get_rect(bottomright=(SCREEN_WIDTH - 30, terrain_top))
         boss_hp_values = [568, 827, 1239]
         if boss_index < len(boss_hp_values):
             self.max_hp = boss_hp_values[boss_index]
@@ -844,7 +901,7 @@ class Boss:
         self.appearing = True
         self.appear_duration = 1.5
         self.start_x = SCREEN_WIDTH + 300
-        self.target_x = SCREEN_WIDTH - 50
+        self.target_x = SCREEN_WIDTH - 30
         self.current_x = self.start_x
         self.grace_period = 0.5
         self.grace_timer = 0
@@ -870,6 +927,29 @@ class Boss:
             else:
                 self.active = False
                 self.defeated = False  # Clear defeated flag so score/obstacles can resume
+                # Trigger background transition when boss defeat animation completes
+                # Skip transition for endless mode (stage 3) - just stay at stage 3 background
+                global background_transition, background_stages, current_background_index, background_image, current_boss_index
+                if not background_transition.transitioning:
+                    # Determine next stage based on the boss that was just defeated
+                    # boss_index is 0-based: 0=first boss, 1=second boss, 2=third boss
+                    # After defeating boss 0, we go to stage 1 background
+                    # After defeating boss 1, we go to stage 2 background  
+                    # After defeating boss 2, we go to stage 3 background (endless) - no transition
+                    # Stage 3 (endless) uses the same background as stage 2, so cap at index 2
+                    next_bg_index = min(self.boss_index + 1, 2)  # Max index is 2 (stage 2 = endless)
+                    if current_background_index != next_bg_index:
+                        # For endless mode (when reaching stage 2), skip transition animation, just set the background
+                        if next_bg_index >= 2:  # Stage 2 (which is also used for endless)
+                            current_background_index = 2
+                            background_image = background_stages[2]  # Use stage 2 image for endless
+                        else:
+                            # For stages 0-1, animate the transition
+                            current_bg = background_stages[current_background_index] if current_background_index < len(background_stages) else background_stages[0]
+                            next_bg = background_stages[next_bg_index]
+                            background_transition.start_transition(current_bg, next_bg)
+                            current_background_index = next_bg_index
+                            background_image = next_bg
             return
             
         if self.appearing:
@@ -923,7 +1003,7 @@ class Boss:
                             self.warning_timer = 0
                         else:
                             self.warning_timer += dt
-                            if self.warning_timer >= 0.3:  # Short delay before firing
+                            if self.warning_timer >= 0.3:
                                 self._execute_attack(player_rect)
                                 self.pending_attack = None
                                 self.warning_timer = 0
@@ -1167,8 +1247,8 @@ class Boss:
         
         y_pos = SCREEN_HEIGHT // 2
         
-        boss_x_min = SCREEN_WIDTH - 50 - 150  # Boss target position - buffer (boss is on right side)
-        boss_x_max = SCREEN_WIDTH - 50 + 50   # Boss target position + buffer
+        boss_x_min = SCREEN_WIDTH - 30 - 150  # Boss target position - buffer (boss is on right side)
+        boss_x_max = SCREEN_WIDTH - 30 + 50   # Boss target position + buffer
         
         self.horizontal_laser_data = []
         self.horizontal_laser_warnings.clear()
@@ -1419,31 +1499,50 @@ class Bullet(pygame.sprite.Sprite):
 
         pass
 
-class Gunpickup(pygame.sprite.Sprite):
-    def __init__(self, x, y):
-        super().__init__()
-        self.image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", "sniper.png")).convert_alpha()
-        self.image = pygame.transform.scale(self.image, (75, 50))
-        self.rect = self.image.get_rect(center=(x, y))
-        self.speed = 600
-
-    def update(self, dt):
-        global game_started
-        if not game_over and game_started:
-            self.rect.x -= self.speed * dt
-            if self.rect.right < 0:
-                self.kill()
-
 # ------------------------- Game Objects -------------------------
-background_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", background_image_path)).convert()
-background_image = pygame.transform.scale(background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
+# Load different background images for each stage
+def create_tinted_background(base_image, tint_color, intensity=0.3):
+    """Create a tinted version of the background"""
+    tinted = base_image.copy()
+    overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    overlay.fill(tint_color)
+    overlay.set_alpha(int(255 * intensity))
+    tinted.blit(overlay, (0, 0))
+    return tinted
+
+# Load background images for each stage (3 stages total)
+# You can replace background_image_paths with different image files for each stage
+background_stages = []
+for i, path in enumerate(background_image_paths):
+    try:
+        # Try to load the specific image for this stage
+        bg = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", path)).convert()
+        bg = pygame.transform.scale(bg, (SCREEN_WIDTH, SCREEN_HEIGHT))
+        
+        # Apply different tints for stages 1-2 to differentiate them
+        if i == 1:
+            bg = create_tinted_background(bg, (100, 150, 255), 0.35)  # Blue tint for stage 1
+        elif i == 2:
+            bg = create_tinted_background(bg, (255, 150, 100), 0.35)  # Orange/red tint for stage 2 (and endless)
+        
+        background_stages.append(bg)
+    except:
+        # Fallback to base background if image not found
+        base_bg = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", background_image_paths[0])).convert()
+        base_bg = pygame.transform.scale(base_bg, (SCREEN_WIDTH, SCREEN_HEIGHT))
+        if i == 1:
+            base_bg = create_tinted_background(base_bg, (100, 150, 255), 0.35)
+        elif i == 2:
+            base_bg = create_tinted_background(base_bg, (255, 150, 100), 0.35)
+        background_stages.append(base_bg)
+
+current_background_index = 0
+background_image = background_stages[0]  # Default to first stage
+background_transition = BackgroundTransition()
 
 bullets = pygame.sprite.Group()
 shoot_cooldown = 0.3
 shoot_timer = 0
-guns = pygame.sprite.Group()
-gun_spawn_timer = 0
-gun_spawn_interval = 6
 
 above = Roof(roof_image, 0, -675)
 base = Terrain(terrain_image, 0, 650)
@@ -1472,8 +1571,13 @@ def spawn_obstacle(obs):
     obs.reset(new_x, base.top)
 
 def reset_game():
-    global game_over, game_started, prev_game_started, score, current_boss_index, boss_active, boss, stage_text, ammo, boss_spawning, reloading, reload_time
+    global game_over, game_started, prev_game_started, score, current_boss_index, boss_active, boss, stage_text, ammo, boss_spawning, reloading, reload_time, current_background_index, background_image, background_transition
     player.reset()
+    # Reset background to stage 0
+    current_background_index = 0
+    background_image = background_stages[0]
+    background_transition.transitioning = False
+    background_transition.transition_timer = 0
     x = 1100
     for obs in obstacles:
         obs.type = random.randint(0, 4)
@@ -1637,7 +1741,7 @@ while running:
 
     # ------------------------- START PROMPT -------------------------
     elif state == START_PROMPT:
-        screen.blit(background_image, (0, 0))
+        background_transition.draw(screen, background_image)
         above.create(screen)
         base.create(screen)
         player.create(screen)
@@ -1664,8 +1768,12 @@ while running:
             if not stage_text.active:
                 stage_text = None
 
+        # Update background transition
+        background_transition.update(dt)
+        
+        # Draw background (with transition animation if active)
         if game_started:
-            screen.blit(background_image, (0, 0))
+            background_transition.draw(screen, background_image)
         else:
             screen.fill(BG)
 
