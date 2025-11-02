@@ -206,7 +206,7 @@ class Player:
         self.move_speed = 400
 
     def handle_input(self, keys, dt, boss_fight=False):
-        global game_started, slide_key_held
+        global game_started, slide_key_held, boss
         if not game_over:
             if boss_fight:
                 if keys[pygame.K_a] or keys[pygame.K_LEFT]:
@@ -214,7 +214,12 @@ class Player:
                     self.obstacle.x = max(0, self.obstacle.x)
                 if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
                     self.obstacle.x += self.move_speed * dt
-                    self.obstacle.x = min(SCREEN_WIDTH - self.obstacle.width, self.obstacle.x)
+                    # Prevent player from going past the boss
+                    if boss is not None and boss.active:
+                        max_x = boss.rect.left - self.obstacle.width - 10  # 10 pixel buffer
+                        self.obstacle.x = min(max_x, self.obstacle.x)
+                    else:
+                        self.obstacle.x = min(SCREEN_WIDTH - self.obstacle.width, self.obstacle.x)
                 if slide_key_held and not self.sliding:
                     self.sliding = True
                     current_bottom = self.obstacle.bottom
