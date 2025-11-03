@@ -15,7 +15,11 @@ A Python game project for PSCP Subject from Team Gloria F School of Information 
 ## About this project
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 Evading PSCP เป็นเกมแนว 2D infinite runner ที่ผู้เล่นจะต้องกระโดดหลบอุปสรรคและเก็บคะแนนให้ได้มากที่สุด โดยระหว่างทางมีบอสสุดเหี้ยมให้ต่อสู้หากเอาชนะบอสได้ก็จะสามารถไปด่านต่อไปได้และก็ได้คะแนนพิเศษจากบอสเหล่านั้นด้วย
+=======
+Evading PSCP เป็นเกมแนว 2D infinite runner ที่ผู้เล่นจะต้องกระโดดหลบอุปสรรคและต่อสู้กับบอสสุดโหดเหี้ยมเพือผ่านด่านและเก็บคะแนนให้ได้สูงที่สุด
+>>>>>>> Stashed changes
 =======
 Evading PSCP เป็นเกมแนว 2D infinite runner ที่ผู้เล่นจะต้องกระโดดหลบอุปสรรคและต่อสู้กับบอสสุดโหดเหี้ยมเพือผ่านด่านและเก็บคะแนนให้ได้สูงที่สุด
 >>>>>>> Stashed changes
@@ -27,7 +31,11 @@ Evading PSCP เป็นเกมแนว 2D infinite runner ที่ผู�
 #### macOS Users
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 1. Download the `Evading_PSCP.dmg` file
+=======
+1. Download the `Evading_PSCP_macOS_Installer.dmg` file
+>>>>>>> Stashed changes
 =======
 1. Download the `Evading_PSCP_macOS_Installer.dmg` file
 >>>>>>> Stashed changes
@@ -44,7 +52,10 @@ Evading PSCP เป็นเกมแนว 2D infinite runner ที่ผู�
 3. Follow the installation wizard
 4. Launch the game from your desktop or Start menu
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+>>>>>>> Stashed changes
 
 ### For Developers
 
@@ -104,4 +115,7 @@ All installers will be created in the `installers/` directory:
 ```bash
 python3 Evading_PSCP/Evading_PSCP.py
 ```
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
