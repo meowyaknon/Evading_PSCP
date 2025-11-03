@@ -24,23 +24,27 @@ BTN_HOVER = (70, 80, 92)
 
 """ Graphics Stuff """
 icon_image = pygame.image.load(resource_path(os.path.join("Asset", "cats.jpg")))
-terrain_image = "floor.jpg"
-player_image = "cats.jpg"
-player_jump_image = "cats.jpg"  # Image for jumping state
-player_slide_image = "cats.jpg"  # Image for sliding state
-roof_image = "roof.jpg"
-boss_image_path = "cats.jpg"
+terrain_image = "terrain.JPG"
+player_image = "default.PNG"
+player_jump_image = "jump.PNG"  # Image for jumping state
+player_slide_image = "slide.PNG"  # Image for sliding state
+roof_image = "roof.PNG"
+boss_image_paths = [
+    "boss1.PNG",  # Boss 1 image
+    "boss2.PNG",  # Boss 2 image
+    "boss3.PNG",  # Boss 3 image
+]
 background_image_paths = [
-    "pixel-grass-ground-and-stone-blocks-pattern-cubic-pixel-game-background-8bit-gaming-interface-2d-technology-retro-wallpaper-or-backdrop-with-soil-2H5J94K.jpg",  # Stage 0 - original background
-    "pixel-grass-ground-and-stone-blocks-pattern-cubic-pixel-game-background-8bit-gaming-interface-2d-technology-retro-wallpaper-or-backdrop-with-soil-2H5J94K.jpg",  # Stage 1 - can be replaced with different image
-    "pixel-grass-ground-and-stone-blocks-pattern-cubic-pixel-game-background-8bit-gaming-interface-2d-technology-retro-wallpaper-or-backdrop-with-soil-2H5J94K.jpg",  # Stage 2 - can be replaced with different image (also used for endless)
+    "stage1.JPG",
+    "stage1.JPG",
+    "stage1.JPG", 
 ]
 obstacle_images_paths = [
-    "cats.jpg",
-    "obstacle.jpg",  # top-half hitbox
-    "cats.jpg",
-    "cats.jpg",  # hanging
-    "cats.jpg"
+    "tall.PNG",
+    "slidable.PNG",  # top-half hitbox
+    "hanging.PNG",
+    "huge.PNG",  # hanging
+    "small.PNG"
 ]
 
 pygame.init()
@@ -217,15 +221,17 @@ class BackgroundTransition:
     
     def draw(self, surface, default_bg):
         """Draw the background with transition effect"""
+        # Background starts at y=125 (below the roof)
+        bg_y = 125
         if self.transitioning:
-            surface.blit(self.current_bg_image, (self.current_bg_x, 0))
-            surface.blit(self.next_bg_image, (self.next_bg_x, 0))
+            surface.blit(self.current_bg_image, (self.current_bg_x, bg_y))
+            surface.blit(self.next_bg_image, (self.next_bg_x, bg_y))
             if self.current_bg_x < 0:
-                surface.blit(self.next_bg_image, (self.current_bg_x + SCREEN_WIDTH, 0))
+                surface.blit(self.next_bg_image, (self.current_bg_x + SCREEN_WIDTH, bg_y))
             if self.next_bg_x > 0:
-                surface.blit(self.current_bg_image, (self.next_bg_x - SCREEN_WIDTH, 0))
+                surface.blit(self.current_bg_image, (self.next_bg_x - SCREEN_WIDTH, bg_y))
         else:
-            surface.blit(default_bg, (0, 0))
+            surface.blit(default_bg, (0, bg_y))
     
     def is_transitioning(self):
         """Check if transition is in progress"""
@@ -429,7 +435,8 @@ class Obstacle:
 class Roof:
     def __init__(self, image_path, x, y):
         original_image = pygame.image.load(resource_path(os.path.join("Asset", image_path))).convert_alpha()
-        self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
+        # Scale to visible height only (125 pixels at bottom of screen)
+        self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH, 125))
         self.roof = [
             self.texture.get_rect(topleft=(x, y)),
             self.texture.get_rect(topleft=(x + SCREEN_WIDTH, y))
@@ -457,7 +464,8 @@ class Roof:
 class Terrain:
     def __init__(self, image_path, x, y):
         original_image = pygame.image.load(resource_path(os.path.join("Asset", image_path))).convert_alpha()
-        self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
+        # Scale to visible height only (150 pixels at top of screen)
+        self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH, 150))
         self.terrain = [
             self.texture.get_rect(topleft=(x, y)),
             self.texture.get_rect(topleft=(x + SCREEN_WIDTH, y))
@@ -571,7 +579,7 @@ class BossLaser(pygame.sprite.Sprite):
         self.start_pos = (start_x, start_y)
         self.target_pos = (target_x, target_y)
         self.width = 15
-        self.color = (255, 0, 0)
+        self.color = (255, 255, 0)  # Yellow - ray of light color
         self.lifetime = 0.5
         self.age = 0
         
@@ -1069,12 +1077,16 @@ class Boss:
                 target_x = self.rect.centerx + rotated_x * target_dist
                 target_y = self.rect.centery + rotated_y * target_dist
                 
+                # Start from boss head
+                start_x = self.rect.centerx
+                start_y = self.rect.top + 50
+                
                 self.pending_laser_data.append({
-                    'start': (self.rect.centerx, self.rect.centery),
+                    'start': (start_x, start_y),
                     'target': (target_x, target_y)
                 })
                 
-                warning = LaserWarning(self.rect.centerx, self.rect.centery, target_x, target_y)
+                warning = LaserWarning(start_x, start_y, target_x, target_y)
                 self.laser_warnings.append(warning)
     
     def _execute_attack(self, player_rect):
@@ -1378,7 +1390,8 @@ class Bullet(pygame.sprite.Sprite):
 def create_tinted_background(base_image, tint_color, intensity=0.3):
     """Create a tinted version of the background"""
     tinted = base_image.copy()
-    overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    # Overlay size matches visible background area
+    overlay = pygame.Surface((SCREEN_WIDTH, 525))
     overlay.fill(tint_color)
     overlay.set_alpha(int(255 * intensity))
     tinted.blit(overlay, (0, 0))
@@ -1388,7 +1401,8 @@ background_stages = []
 for i, path in enumerate(background_image_paths):
     try:
         bg = pygame.image.load(resource_path(os.path.join("Asset", path))).convert()
-        bg = pygame.transform.scale(bg, (SCREEN_WIDTH, SCREEN_HEIGHT))
+        # Scale to visible area only (525 pixels height between roof and terrain)
+        bg = pygame.transform.scale(bg, (SCREEN_WIDTH, 525))
         
         if i == 1:
             bg = create_tinted_background(bg, (100, 150, 255), 0.35)  # Blue tint for stage 1
@@ -1398,7 +1412,7 @@ for i, path in enumerate(background_image_paths):
         background_stages.append(bg)
     except:
         base_bg = pygame.image.load(resource_path(os.path.join("Asset", background_image_paths[0]))).convert()
-        base_bg = pygame.transform.scale(base_bg, (SCREEN_WIDTH, SCREEN_HEIGHT))
+        base_bg = pygame.transform.scale(base_bg, (SCREEN_WIDTH, 525))
         if i == 1:
             base_bg = create_tinted_background(base_bg, (100, 150, 255), 0.35)
         elif i == 2:
@@ -1413,7 +1427,7 @@ bullets = pygame.sprite.Group()
 shoot_cooldown = 0.3
 shoot_timer = 0
 
-above = Roof(roof_image, 0, -675)
+above = Roof(roof_image, 0, 0)
 base = Terrain(terrain_image, 0, 650)
 player = Player(player_image, 100, base.top, player_jump_image, player_slide_image)
 
@@ -1646,7 +1660,7 @@ while running:
         boss_defeat_in_progress = (boss is not None and boss.defeated)
         
         if game_started and not game_over and not boss_active and not boss_spawning and not boss_defeat_in_progress:
-            score += dt*100
+            score += dt*50
 
         if current_boss_index < len(boss_score_thresholds):
             if score >= boss_score_thresholds[current_boss_index] and not boss_active and not boss_spawning:
@@ -1664,7 +1678,8 @@ while running:
                         break
             
             if all_obstacles_cleared:
-                boss = Boss(boss_image_path, base.top, current_boss_index)
+                boss_img = boss_image_paths[current_boss_index] if current_boss_index < len(boss_image_paths) else boss_image_paths[-1]
+                boss = Boss(boss_img, base.top, current_boss_index)
                 boss_active = True
                 boss_spawning = False
                 current_boss_index += 1
@@ -1900,7 +1915,8 @@ while running:
             ammo_text = font.render(f"Ammo : reloading.../{max_ammo}", True, (255, 200, 0))
         else:
             ammo_text = font.render(f"Ammo : {int(ammo)}/{max_ammo}", True, WHITE)
-        screen.blit(ammo_text, (10, 50))
+        # Position ammo to match score's right margin (350px from right edge)
+        screen.blit(ammo_text, (50, 50))
         if stage_text is not None:
             stage_text.draw(screen)
 
