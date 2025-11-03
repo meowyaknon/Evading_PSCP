@@ -8,7 +8,7 @@ A Python game project for PSCP Subject from Team Gloria F School of Information 
 - Pun_Nep_Kin: กฤษฎิ์ ลิ้มตระกูล 68070214
 - Mayb.pinny: ปรียาพร เอี่ยมประดิษฐ์ภัณ 68070286
 - pearson_pesrmak: เอมม่า เพียร์สัน 68070328
-- jame_thananon: ธนานน๖ื เจียจงเจริญชัย 68070265
+- jame_thananon: ธนานนต์ เจียจงเจริญชัย 68070265
 
 ## About this project
 Evading PSCP เป็นเกมแนว 2D infinite runner ที่ผู้เล่นจะต้องกระโดดหลบอุปสรรคและเก็บคะแนนให้ได้มากที่สุด โดยระหว่างทางมีบอสสุดเหี้ยมให้ต่อสู้หากเอาชนะบอสได้ก็จะสามารถไปด่านต่อไปได้และก็ได้คะแนนพิเศษจากบอสเหล่านั้นด้วย
