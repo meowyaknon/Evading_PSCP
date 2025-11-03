@@ -2,6 +2,11 @@ import pygame
 import random
 import os
 import math
+import sys
+
+def resource_path(relative_path):
+    base_path = getattr(sys, "_MEIPASS", os.path.dirname(__file__))
+    return os.path.join(base_path, relative_path)
 
 """ Basic Settings """
 SCREEN_WIDTH = 1400
@@ -18,7 +23,7 @@ BTN_BORDER = (140, 140, 140)
 BTN_HOVER = (70, 80, 92)
 
 """ Graphics Stuff """
-icon_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", "cats.jpg"))
+icon_image = pygame.image.load(resource_path(os.path.join("Asset", "cats.jpg")))
 terrain_image = "floor.jpg"
 player_image = "cats.jpg"
 player_jump_image = "cats.jpg"  # Image for jumping state
@@ -49,10 +54,10 @@ pygame.display.set_caption("Evading PSCP")
 clock = pygame.time.Clock()
 
 """ Obstacle Pre-Set """
-num_obstacles = 9999
+num_obstacles = 999
 obstacle_images = []
 for path in obstacle_images_paths:
-    image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", path)).convert_alpha()
+    image = pygame.image.load(resource_path(os.path.join("Asset", path))).convert_alpha()
     scaled_versions = {
         "small": pygame.transform.scale(image, (100, 100)),
         "medium": pygame.transform.scale(image, (100, 160)),
@@ -79,7 +84,7 @@ reloading = False
 reload_time = 0
 reload_duration = 2.0 
 score = 0
-boss_score_thresholds = [200, 400, 600] #1000 2300 4200
+boss_score_thresholds = [1000, 2300, 4200] #1000 2300 4200
 current_boss_index = 0
 boss_active = False
 boss_spawning = False 
@@ -87,7 +92,7 @@ boss = None
 stage_text = None
 stage_text_timer = 0
 stage_text_duration = 2.0
-boss_point_rewards = [0, 0, 0] #300 500 700
+boss_point_rewards = [300, 500, 700] #300, 500, 700
 obstacles_reset_after_boss = False 
 
 # ------------------------- Utilities -------------------------
@@ -191,8 +196,6 @@ class BackgroundTransition:
         self.next_bg_image = next_bg
         self.current_bg_x = 0
         self.next_bg_x = SCREEN_WIDTH  
-        # Note: This instance variable is not used - global current_background_index is used instead
-        # self.current_background_index = (self.current_background_index + 1) % 3 
         
     def update(self, dt):
         """Update transition animation"""
@@ -230,13 +233,13 @@ class BackgroundTransition:
 
 class Player:
     def __init__(self, image_path, x, y, jump_image_path=None, slide_image_path=None):
-        self.original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
+        self.original_image = pygame.image.load(resource_path(os.path.join("Asset", image_path))).convert_alpha()
         self.normal_width = 100
         self.jumping_width = 130
         self.image_normal = pygame.transform.scale(self.original_image, (self.normal_width, 200))
         
         if jump_image_path:
-            jump_img = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", jump_image_path)).convert_alpha()
+            jump_img = pygame.image.load(resource_path(os.path.join("Asset", jump_image_path))).convert_alpha()
             self.jumping_height = 180
             self.image_jump = pygame.transform.scale(jump_img, (self.jumping_width, self.jumping_height))
         else:
@@ -244,7 +247,7 @@ class Player:
             self.image_jump = pygame.transform.scale(self.original_image, (self.jumping_width, self.jumping_height))
         
         if slide_image_path:
-            slide_img = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", slide_image_path)).convert_alpha()
+            slide_img = pygame.image.load(resource_path(os.path.join("Asset", slide_image_path))).convert_alpha()
             self.sliding_height = 80
             self.image_slide = pygame.transform.scale(slide_img, (175, self.sliding_height))
         else:
@@ -425,7 +428,7 @@ class Obstacle:
 
 class Roof:
     def __init__(self, image_path, x, y):
-        original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
+        original_image = pygame.image.load(resource_path(os.path.join("Asset", image_path))).convert_alpha()
         self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
         self.roof = [
             self.texture.get_rect(topleft=(x, y)),
@@ -453,7 +456,7 @@ class Roof:
 
 class Terrain:
     def __init__(self, image_path, x, y):
-        original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
+        original_image = pygame.image.load(resource_path(os.path.join("Asset", image_path))).convert_alpha()
         self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
         self.terrain = [
             self.texture.get_rect(topleft=(x, y)),
@@ -600,135 +603,6 @@ class BossBullet(pygame.sprite.Sprite):
         if self.rect.right < 0 or self.rect.left > SCREEN_WIDTH or self.rect.bottom < 0 or self.rect.top > SCREEN_HEIGHT:
             self.kill()
 
-class HomingMissile(pygame.sprite.Sprite):
-    def __init__(self, x, y, player_rect):
-        super().__init__()
-        self.base_image = pygame.Surface((20, 8))
-        self.base_image.fill((255, 50, 50))
-        self.image = self.base_image
-        self.rect = self.image.get_rect(center=(x, y))
-        self.speed = 400
-        self.turn_rate = 2.5 
-        dx = player_rect.centerx - x
-        dy = player_rect.centery - y
-        dist = (dx**2 + dy**2)**0.5
-        if dist > 0:
-            self.velocity_x = (dx / dist) * self.speed
-            self.velocity_y = (dy / dist) * self.speed
-        else:
-            self.velocity_x = 200
-            self.velocity_y = 0
-        self.player_rect = player_rect
-        
-    def update(self, dt, player_rect=None):
-        if player_rect is None:
-            player_rect = self.player_rect
-        
-        dx = player_rect.centerx - self.rect.centerx
-        dy = player_rect.centery - self.rect.centery
-        dist = (dx**2 + dy**2)**0.5
-        
-        close_distance_threshold = 100 
-        if dist < close_distance_threshold:
-            if dist > 0:
-                away_from_player_x = -dx / dist 
-                away_from_player_y = -dy / dist
-            else:
-                away_from_player_x = random.uniform(-1, 1)
-                away_from_player_y = random.uniform(-1, 1)
-                norm = (away_from_player_x**2 + away_from_player_y**2)**0.5
-                if norm > 0:
-                    away_from_player_x /= norm
-                    away_from_player_y /= norm
-            
-            random_x = random.uniform(-0.3, 0.3)
-            random_y = random.uniform(-0.3, 0.3)
-            
-            new_dir_x = away_from_player_x * 0.9 + random_x * 0.1
-            new_dir_y = away_from_player_y * 0.9 + random_y * 0.1
-            norm = (new_dir_x**2 + new_dir_y**2)**0.5
-            if norm > 0:
-                new_dir_x /= norm
-                new_dir_y /= norm
-            
-            current_speed = (self.velocity_x**2 + self.velocity_y**2)**0.5
-            if current_speed > 0:
-                current_dir_x = self.velocity_x / current_speed
-                current_dir_y = self.velocity_y / current_speed
-                
-                turn_amount = 8.0 * dt  # Very fast turning
-                dot = current_dir_x * new_dir_x + current_dir_y * new_dir_y
-                dot = max(-1, min(1, dot))
-                angle = math.acos(dot)
-                
-                if angle > turn_amount:
-                    perp_x = -current_dir_y
-                    perp_y = current_dir_x
-                    turn_dir = 1 if (new_dir_x * perp_x + new_dir_y * perp_y) > 0 else -1
-                    new_dir_x = current_dir_x * math.cos(turn_amount) - turn_dir * current_dir_y * math.sin(turn_amount)
-                    new_dir_y = turn_dir * current_dir_x * math.sin(turn_amount) + current_dir_y * math.cos(turn_amount)
-                else:
-                    new_dir_x = away_from_player_x
-                    new_dir_y = away_from_player_y
-            
-            self.velocity_x = new_dir_x * self.speed
-            self.velocity_y = new_dir_y * self.speed
-        elif dist > 0:
-            inaccuracy_factor = 0.4  # 40% inaccuracy for less perfect tracking
-            offset_range = dist * 0.2 * inaccuracy_factor
-            dx += random.uniform(-offset_range, offset_range)
-            dy += random.uniform(-offset_range, offset_range)
-            dist = (dx**2 + dy**2)**0.5
-            
-            if dist > 0:
-                target_dir_x = dx / dist
-                target_dir_y = dy / dist
-                
-                current_speed = (self.velocity_x**2 + self.velocity_y**2)**0.5
-                if current_speed > 0:
-                    current_dir_x = self.velocity_x / current_speed
-                    current_dir_y = self.velocity_y / current_speed
-                else:
-                    current_dir_x = target_dir_x
-                    current_dir_y = target_dir_y
-                
-                turn_amount = self.turn_rate * dt
-                dot = current_dir_x * target_dir_x + current_dir_y * target_dir_y
-                dot = max(-1, min(1, dot))  # Clamp
-                angle = math.acos(dot)
-                
-                if angle > turn_amount:
-                    perp_x = -current_dir_y
-                    perp_y = current_dir_x
-                    turn_dir = 1 if (target_dir_x * perp_x + target_dir_y * perp_y) > 0 else -1
-                    
-                    new_dir_x = current_dir_x * math.cos(turn_amount) - turn_dir * current_dir_y * math.sin(turn_amount)
-                    new_dir_y = turn_dir * current_dir_x * math.sin(turn_amount) + current_dir_y * math.cos(turn_amount)
-                else:
-                    drift = 0.12  # Moderate drift
-                    new_dir_x = target_dir_x + random.uniform(-drift, drift)
-                    new_dir_y = target_dir_y + random.uniform(-drift, drift)
-                    norm = (new_dir_x**2 + new_dir_y**2)**0.5
-                    if norm > 0:
-                        new_dir_x /= norm
-                        new_dir_y /= norm
-                
-                self.velocity_x = new_dir_x * self.speed
-                self.velocity_y = new_dir_y * self.speed
-        
-        if abs(self.velocity_x) > 0.1 or abs(self.velocity_y) > 0.1:
-            angle = math.atan2(self.velocity_y, self.velocity_x)
-            self.image = pygame.transform.rotate(self.base_image, -math.degrees(angle))
-            old_center = self.rect.center
-            self.rect = self.image.get_rect()
-            self.rect.center = old_center
-        
-        self.rect.x += self.velocity_x * dt
-        self.rect.y += self.velocity_y * dt
-        
-        if self.rect.right < 0 or self.rect.left > SCREEN_WIDTH or self.rect.bottom < 0 or self.rect.top > SCREEN_HEIGHT:
-            self.kill()
-
 class HorizontalLaserWarning:
     """Warning preview for horizontal moving laser"""
     def __init__(self, y, hole_start_x, hole_end_x):
@@ -857,10 +731,10 @@ class VerticalLaser:
 
 class Boss:
     def __init__(self, image_path, terrain_top, boss_index=0):
-        self.original_image = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", image_path)).convert_alpha()
-        self.image = pygame.transform.scale(self.original_image, (250, 300))
+        self.original_image = pygame.image.load(resource_path(os.path.join("Asset", image_path))).convert_alpha()
+        self.image = pygame.transform.scale(self.original_image, (200, 300))
         self.rect = self.image.get_rect(bottomright=(SCREEN_WIDTH - 30, terrain_top))
-        boss_hp_values = [568, 827, 1239]
+        boss_hp_values = [668, 927, 1339]
         if boss_index < len(boss_hp_values):
             self.max_hp = boss_hp_values[boss_index]
         else:
@@ -1319,10 +1193,11 @@ class Boss:
         laser_start_y = self.rect.top + 50  # From boss head
         
         for _ in range(barrage_count):
-            angle = random.uniform(0, 2 * math.pi)  # Full 360 degree spread
+            # Aim generally toward the player with some spread so it goes leftwards
+            dir_x = player_rect.centerx - laser_start_x
+            dir_y = player_rect.centery - laser_start_y
+            base_angle = math.atan2(dir_y, dir_x)
             spread_range = random.uniform(-0.8, 0.8)  # Wider spread
-            
-            base_angle = random.uniform(-math.pi/2, math.pi/2)  # -90 to +90 degrees
             angle = base_angle + spread_range
             
             target_dist = random.uniform(1500, 2500)
@@ -1496,7 +1371,6 @@ class Bullet(pygame.sprite.Sprite):
         self.rect.x += self.speed * dt
         if self.rect.left > SCREEN_WIDTH:
             self.kill()
-
         pass
 
 # ------------------------- Game Objects -------------------------
@@ -1510,16 +1384,12 @@ def create_tinted_background(base_image, tint_color, intensity=0.3):
     tinted.blit(overlay, (0, 0))
     return tinted
 
-# Load background images for each stage (3 stages total)
-# You can replace background_image_paths with different image files for each stage
 background_stages = []
 for i, path in enumerate(background_image_paths):
     try:
-        # Try to load the specific image for this stage
-        bg = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", path)).convert()
+        bg = pygame.image.load(resource_path(os.path.join("Asset", path))).convert()
         bg = pygame.transform.scale(bg, (SCREEN_WIDTH, SCREEN_HEIGHT))
         
-        # Apply different tints for stages 1-2 to differentiate them
         if i == 1:
             bg = create_tinted_background(bg, (100, 150, 255), 0.35)  # Blue tint for stage 1
         elif i == 2:
@@ -1527,8 +1397,7 @@ for i, path in enumerate(background_image_paths):
         
         background_stages.append(bg)
     except:
-        # Fallback to base background if image not found
-        base_bg = pygame.image.load(os.path.join(os.path.dirname(__file__), "Asset", background_image_paths[0])).convert()
+        base_bg = pygame.image.load(resource_path(os.path.join("Asset", background_image_paths[0]))).convert()
         base_bg = pygame.transform.scale(base_bg, (SCREEN_WIDTH, SCREEN_HEIGHT))
         if i == 1:
             base_bg = create_tinted_background(base_bg, (100, 150, 255), 0.35)
@@ -1573,7 +1442,6 @@ def spawn_obstacle(obs):
 def reset_game():
     global game_over, game_started, prev_game_started, score, current_boss_index, boss_active, boss, stage_text, ammo, boss_spawning, reloading, reload_time, current_background_index, background_image, background_transition
     player.reset()
-    # Reset background to stage 0
     current_background_index = 0
     background_image = background_stages[0]
     background_transition.transitioning = False
@@ -1768,10 +1636,8 @@ while running:
             if not stage_text.active:
                 stage_text = None
 
-        # Update background transition
         background_transition.update(dt)
         
-        # Draw background (with transition animation if active)
         if game_started:
             background_transition.draw(screen, background_image)
         else:
