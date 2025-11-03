@@ -22,7 +22,7 @@ Evading PSCP เป็นเกมแนว 2D infinite runner ที่ผู�
 
 #### macOS Users
 
-1. Download the `Evading_PSCP.dmg` file
+1. Download the `Evading_PSCP.dmg` file in the installers folder
 2. Open the DMG file
 3. Drag "Evading PSCP.app" to your Applications folder
 4. Launch the game from your Applications folder
@@ -31,7 +31,7 @@ Evading PSCP เป็นเกมแนว 2D infinite runner ที่ผู�
 
 #### Windows Users
 
-1. Download the `Evading_PSCP_Setup.exe` file
+1. Download the `Evading_PSCP_Setup.exe` file in the installers folder
 2. Run the installer
 3. Follow the installation wizard
 4. Launch the game from your desktop or Start menu
