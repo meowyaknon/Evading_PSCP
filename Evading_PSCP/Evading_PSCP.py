@@ -26,9 +26,20 @@ BTN_HOVER = (70, 80, 92)
 icon_image = pygame.image.load(resource_path(os.path.join("Asset", "cats.jpg")))
 terrain_image = "terrain.JPG"
 player_image = "default.PNG"
-player_jump_image = "jump.PNG"  # Image for jumping state
-player_slide_image = "slide.PNG"  # Image for sliding state
+player_jump_image = "jump.PNG"  
+player_slide_image = "slide.PNG" 
 roof_image = "roof.PNG"
+roof_image_paths = [
+    "roof1.PNG",
+    "roof2.JPG",
+    "roof1.PNG",
+]
+terrain_image = "terrain.JPG"
+terrain_image_paths = [
+    "terrain1.JPG",
+    "terrain2.JPG",
+    "terrain2.JPG",
+]
 boss_image_paths = [
     "boss1.PNG",  # Boss 1 image
     "boss2.PNG",  # Boss 2 image
@@ -36,14 +47,14 @@ boss_image_paths = [
 ]
 background_image_paths = [
     "stage1.JPG",
-    "stage1.JPG",
+    "stage2.JPG",
     "stage1.JPG", 
 ]
 obstacle_images_paths = [
     "tall.PNG",
     "slidable.PNG",  # top-half hitbox
-    "hanging.PNG",
-    "huge.PNG",  # hanging
+    "hanging.PNG", # hanging
+    "huge.PNG", 
     "small.PNG"
 ]
 
@@ -80,7 +91,6 @@ state = MENU
 game_over = False
 game_started = False
 prev_game_started = False
-has_gun = True
 slide_key_held = False 
 ammo = 8 
 max_ammo = 8
@@ -94,10 +104,7 @@ boss_active = False
 boss_spawning = False 
 boss = None
 stage_text = None
-stage_text_timer = 0
-stage_text_duration = 2.0
-boss_point_rewards = [300, 500, 700] #300, 500, 700
-obstacles_reset_after_boss = False 
+boss_point_rewards = [300, 500, 700] #300, 500, 700 
 
 # ------------------------- Utilities -------------------------
 
@@ -143,7 +150,6 @@ class StageText:
         if custom_text:
             self.text = custom_text
         else:
-            self.stage_num = stage_num
             self.text = f"Stage {stage_num}"
         self.x = -500
         self.target_x = SCREEN_WIDTH // 2
@@ -221,7 +227,6 @@ class BackgroundTransition:
     
     def draw(self, surface, default_bg):
         """Draw the background with transition effect"""
-        # Background starts at y=125 (below the roof)
         bg_y = 125
         if self.transitioning:
             surface.blit(self.current_bg_image, (self.current_bg_x, bg_y))
@@ -232,10 +237,6 @@ class BackgroundTransition:
                 surface.blit(self.current_bg_image, (self.next_bg_x - SCREEN_WIDTH, bg_y))
         else:
             surface.blit(default_bg, (0, bg_y))
-    
-    def is_transitioning(self):
-        """Check if transition is in progress"""
-        return self.transitioning
 
 class Player:
     def __init__(self, image_path, x, y, jump_image_path=None, slide_image_path=None):
@@ -259,7 +260,7 @@ class Player:
         else:
             self.sliding_height = 80
             self.image_slide = pygame.transform.scale(self.original_image, (175, self.sliding_height))
-        self.start_x, self.start_y = x, y
+        self.start_x = x
         self.obstacle = self.image_normal.get_rect(midbottom=(x, y))
         self.normal_height = 200
         self.velocity = 0
@@ -269,7 +270,6 @@ class Player:
         self.falling = False
         self.collision = False
         self.sliding = False
-        self.has_gun = False
         self.move_speed = 400
 
     def handle_input(self, keys, dt, boss_fight=False):
@@ -433,16 +433,51 @@ class Obstacle:
         return self.obstacle
 
 class Roof:
-    def __init__(self, image_path, x, y):
-        original_image = pygame.image.load(resource_path(os.path.join("Asset", image_path))).convert_alpha()
-        # Scale to visible height only (125 pixels at bottom of screen)
-        self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH, 125))
+    def __init__(self, texture, x, y):
+        self.texture = texture
         self.roof = [
             self.texture.get_rect(topleft=(x, y)),
             self.texture.get_rect(topleft=(x + SCREEN_WIDTH, y))
         ]
         self.speed = 600
         self.active = True
+        self.transitioning = False
+        self.transition_timer = 0
+        self.transition_duration = 2.0
+        self.current_texture = texture
+        self.next_texture = None
+        self.current_x = 0
+        self.next_x = 0
+
+    def start_transition(self, current_texture, next_texture):
+        self.transitioning = True
+        self.transition_timer = 0
+        self.current_texture = current_texture
+        self.next_texture = next_texture
+        self.current_x = 0
+        self.next_x = SCREEN_WIDTH
+
+    def update_transition(self, dt):
+        if not self.transitioning:
+            return
+        
+        self.transition_timer += dt
+        progress = min(1.0, self.transition_timer / self.transition_duration)
+        eased_progress = 1 - (1 - progress) ** 3
+        
+        self.current_x = -eased_progress * SCREEN_WIDTH
+        self.next_x = SCREEN_WIDTH - eased_progress * SCREEN_WIDTH
+        
+        if progress >= 1.0:
+            self.transitioning = False
+            self.texture = self.next_texture
+            self.current_texture = self.next_texture
+            self.current_x = 0
+            self.next_x = 0
+
+    def set_texture(self, texture):
+        self.texture = texture
+        self.current_texture = texture
 
     def move(self, dt):
         if not game_over and self.active and game_started:
@@ -454,24 +489,81 @@ class Roof:
                 self.roof[1].x = self.roof[0].right
 
     def create(self, surface):
-        for i in self.roof:
-            surface.blit(self.texture, i)
+        if self.transitioning:
+            # Draw both textures for each scrolling tile
+            for i in range(2):
+                base_x = self.roof[i].x
+                base_y = self.roof[i].y
+                
+                # Current texture positions
+                current_x1 = base_x + self.current_x
+                current_x2 = base_x + self.current_x + SCREEN_WIDTH
+                
+                # Next texture positions
+                next_x1 = base_x + self.next_x
+                next_x2 = base_x + self.next_x + SCREEN_WIDTH
+                
+                # Draw current texture (both tiles)
+                surface.blit(self.current_texture, (current_x1, base_y))
+                surface.blit(self.current_texture, (current_x2, base_y))
+                
+                # Draw next texture (both tiles)
+                surface.blit(self.next_texture, (next_x1, base_y))
+                surface.blit(self.next_texture, (next_x2, base_y))
+        else:
+            for i in self.roof:
+                surface.blit(self.texture, i)
 
     @property
     def bottom(self):
         return self.roof[0].bottom
 
 class Terrain:
-    def __init__(self, image_path, x, y):
-        original_image = pygame.image.load(resource_path(os.path.join("Asset", image_path))).convert_alpha()
-        # Scale to visible height only (150 pixels at top of screen)
-        self.texture = pygame.transform.scale(original_image, (SCREEN_WIDTH, 150))
+    def __init__(self, texture, x, y):
+        self.texture = texture
         self.terrain = [
             self.texture.get_rect(topleft=(x, y)),
             self.texture.get_rect(topleft=(x + SCREEN_WIDTH, y))
         ]
         self.active = True
         self.speed = 600
+        self.transitioning = False
+        self.transition_timer = 0
+        self.transition_duration = 2.0
+        self.current_texture = texture
+        self.next_texture = None
+        self.current_x = 0
+        self.next_x = 0
+
+    def start_transition(self, current_texture, next_texture):
+        self.transitioning = True
+        self.transition_timer = 0
+        self.current_texture = current_texture
+        self.next_texture = next_texture
+        self.current_x = 0
+        self.next_x = SCREEN_WIDTH
+
+    def update_transition(self, dt):
+        if not self.transitioning:
+            return
+        
+        self.transition_timer += dt
+        progress = min(1.0, self.transition_timer / self.transition_duration)
+        eased_progress = 1 - (1 - progress) ** 3
+        
+        self.current_x = -eased_progress * SCREEN_WIDTH
+        self.next_x = SCREEN_WIDTH - eased_progress * SCREEN_WIDTH
+        
+        if progress >= 1.0:
+            self.transitioning = False
+            self.texture = self.next_texture
+            self.current_texture = self.next_texture
+            self.current_x = 0
+            self.next_x = 0
+
+    def set_texture(self, texture):
+        self.texture = texture
+        self.current_texture = texture
 
     def move(self, dt):
         if not game_over and self.active and game_started:
@@ -483,8 +575,30 @@ class Terrain:
                 self.terrain[1].x = self.terrain[0].right
 
     def create(self, surface):
-        for i in self.terrain:
-            surface.blit(self.texture, i)
+        if self.transitioning:
+            # Draw both textures for each scrolling tile
+            for i in range(2):
+                base_x = self.terrain[i].x
+                base_y = self.terrain[i].y
+                
+                # Current texture positions
+                current_x1 = base_x + self.current_x
+                current_x2 = base_x + self.current_x + SCREEN_WIDTH
+                
+                # Next texture positions
+                next_x1 = base_x + self.next_x
+                next_x2 = base_x + self.next_x + SCREEN_WIDTH
+                
+                # Draw current texture (both tiles)
+                surface.blit(self.current_texture, (current_x1, base_y))
+                surface.blit(self.current_texture, (current_x2, base_y))
+                
+                # Draw next texture (both tiles)
+                surface.blit(self.next_texture, (next_x1, base_y))
+                surface.blit(self.next_texture, (next_x2, base_y))
+        else:
+            for i in self.terrain:
+                surface.blit(self.texture, i)
 
     @property
     def top(self):
@@ -494,7 +608,6 @@ class TopBottomLaserWarning:
     """Warning for top/bottom laser beam"""
     def __init__(self, x, from_top):
         self.x = x
-        self.from_top = from_top  # True = from top, False = from bottom
         self.width = 30
         self.height = SCREEN_HEIGHT
         self.age = 0
@@ -518,11 +631,10 @@ class TopBottomLaser:
     """Laser beam that shoots from top or bottom"""
     def __init__(self, x, from_top):
         self.x = x
-        self.from_top = from_top  # True = from top, False = from bottom
         self.width = 30
         self.height = SCREEN_HEIGHT
         self.active = True
-        self.lifetime = 1.5  # How long laser stays active
+        self.lifetime = 1.5  
         self.age = 0
         
     def update(self, dt):
@@ -552,7 +664,7 @@ class LaserWarning:
     def __init__(self, start_x, start_y, target_x, target_y):
         self.start_pos = (start_x, start_y)
         self.target_pos = (target_x, target_y)
-        self.width = 8  # Smaller width for a "little" laser shadow
+        self.width = 8 
         self.age = 0
         self.warning_duration = 0.8
         
@@ -562,7 +674,7 @@ class LaserWarning:
     def draw(self, surface):
         if self.age < self.warning_duration:
             alpha = int(80 + 100 * (0.5 + 0.5 * math.sin(self.age * 12)))
-            color = (255, 0, 0)  # Red color
+            color = (255, 0, 0) 
             
             temp_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
             
@@ -579,7 +691,7 @@ class BossLaser(pygame.sprite.Sprite):
         self.start_pos = (start_x, start_y)
         self.target_pos = (target_x, target_y)
         self.width = 15
-        self.color = (255, 255, 0)  # Yellow - ray of light color
+        self.color = (255, 255, 150)  
         self.lifetime = 0.5
         self.age = 0
         
@@ -626,7 +738,7 @@ class HorizontalLaserWarning:
         
     def draw(self, surface):
         if self.age < self.warning_duration:
-            pulse_time = pygame.time.get_ticks() * 0.003  # Slower pulse rate
+            pulse_time = pygame.time.get_ticks() * 0.003 
             alpha = int(70 + 50 * (0.5 + 0.5 * math.sin(pulse_time)))
             temp_surface = pygame.Surface((SCREEN_WIDTH, self.width), pygame.SRCALPHA)
             
@@ -644,15 +756,13 @@ class HorizontalLaser:
     """Horizontal laser that moves vertically with a hole for player to escape"""
     def __init__(self, y, target_y, hole_start_x, hole_end_x, move_down=True):
         self.y = y
-        self.start_y = y
         self.target_y = target_y
         self.hole_start_x = hole_start_x
         self.hole_end_x = hole_end_x
         self.width = 25
-        self.height = SCREEN_WIDTH
         self.active = True
         self.speed = 350
-        self.move_down = move_down  # True = moving down, False = moving up
+        self.move_down = move_down  
         self.disappear_distance = 50
         
     def update(self, dt):
@@ -699,7 +809,6 @@ class VerticalLaser:
     """Vertical laser that moves horizontally towards player's default position"""
     def __init__(self, x, target_x, terrain_top):
         self.x = x
-        self.start_x = x
         self.target_x = target_x  # Player's default position (around x=100)
         self.width = 30  # Made wider for better visibility
         self.height = SCREEN_HEIGHT
@@ -758,7 +867,6 @@ class Boss:
         self.vertical_lasers = []  # For vertical moving lasers (boss 2)
         self.horizontal_lasers = []  # For horizontal moving lasers with holes (boss 2)
         self.horizontal_laser_warnings = []  # Warnings for horizontal lasers
-        self.horizontal_laser_barrage_count = 0  # Number of lasers in current barrage
         self.horizontal_laser_barrage_active = False
         self.horizontal_laser_barrage_timer = 0
         self.horizontal_laser_barrage_delay = 2.5  # Time between each warning/laser (increased for player reaction)
@@ -811,7 +919,7 @@ class Boss:
                 self.defeated = False  # Clear defeated flag so score/obstacles can resume
                 # Trigger background transition when boss defeat animation completes
                 # Skip transition for endless mode (stage 3) - just stay at stage 3 background
-                global background_transition, background_stages, current_background_index, background_image, current_boss_index
+                global background_transition, background_stages, current_background_index, background_image, current_boss_index, roof_stages, terrain_stages, above, base
                 if not background_transition.transitioning:
                     # Determine next stage based on the boss that was just defeated
                     # boss_index is 0-based: 0=first boss, 1=second boss, 2=third boss
@@ -825,13 +933,22 @@ class Boss:
                         if next_bg_index >= 2:  # Stage 2 (which is also used for endless)
                             current_background_index = 2
                             background_image = background_stages[2]  # Use stage 2 image for endless
+                            above.set_texture(roof_stages[2])
+                            base.set_texture(terrain_stages[2])
                         else:
                             # For stages 0-1, animate the transition
                             current_bg = background_stages[current_background_index] if current_background_index < len(background_stages) else background_stages[0]
                             next_bg = background_stages[next_bg_index]
                             background_transition.start_transition(current_bg, next_bg)
-                            current_background_index = next_bg_index
                             background_image = next_bg
+                            # Transition roof and terrain
+                            current_roof = roof_stages[current_background_index] if current_background_index < len(roof_stages) else roof_stages[0]
+                            next_roof = roof_stages[next_bg_index]
+                            above.start_transition(current_roof, next_roof)
+                            current_terrain = terrain_stages[current_background_index] if current_background_index < len(terrain_stages) else terrain_stages[0]
+                            next_terrain = terrain_stages[next_bg_index]
+                            base.start_transition(current_terrain, next_terrain)
+                            current_background_index = next_bg_index
             return
             
         if self.appearing:
@@ -1103,7 +1220,6 @@ class Boss:
             self.laser_warnings.clear()
             self.pending_laser_data = []
         elif self.pending_attack == "horizontal_laser_barrage":
-            self.horizontal_laser_barrage_count = 5
             self.horizontal_laser_barrage_active = True
             self.horizontal_laser_barrage_timer = 0
             self.horizontal_laser_warning_timer = 0
@@ -1178,22 +1294,6 @@ class Boss:
             self.horizontal_laser_warnings.clear()  # Only show one warning at a time
             self.horizontal_laser_warnings.append(warning)
     
-    def _fire_horizontal_laser(self):
-        if len(self.horizontal_laser_data) > 0:
-            laser_data = self.horizontal_laser_data[0]
-            self.horizontal_laser_data.pop(0)
-            
-            start_y = -50
-            target_y = SCREEN_HEIGHT + 50
-            h_laser = HorizontalLaser(
-                start_y, 
-                target_y, 
-                laser_data['hole_start'], 
-                laser_data['hole_end'],
-                move_down=True
-            )
-            self.horizontal_lasers.append(h_laser)
-    
     def _create_head_laser_warnings(self, player_rect):
         """Create warnings for head laser barrage (from boss head, NOT directed at player - random spread)"""
         barrage_count = 5
@@ -1257,7 +1357,7 @@ class Boss:
     
     def _start_top_bottom_laser(self):
         """Start the top/bottom laser beam attack sequence"""
-        self.top_bottom_laser_count = 10  # Total 10 lasers
+        self.top_bottom_laser_count = 10  
         self.top_bottom_laser_active = True
         self.top_bottom_laser_timer = 0
         self.top_bottom_laser_warning_timer = 0
@@ -1269,13 +1369,13 @@ class Boss:
         x_pos = random.randint(100, SCREEN_WIDTH - 100)
         
         warning = TopBottomLaserWarning(x_pos, from_top)
-        self.top_bottom_laser_warnings.clear()  # Only one warning at a time
+        self.top_bottom_laser_warnings.clear()  
         self.top_bottom_laser_warnings.append(warning)
         self.top_bottom_laser_warning_timer = 0
     
     def _fire_vertical_laser(self, player_rect):
         start_x = SCREEN_WIDTH + 50
-        target_x = 100  # Player's default starting x position
+        target_x = 100  
         v_laser = VerticalLaser(start_x, target_x, self.rect.bottom)
         self.vertical_lasers.append(v_laser)
     
@@ -1359,7 +1459,7 @@ class Boss:
             
             if obstacles_ref is not None and base_ref is not None:
                 x = SCREEN_WIDTH + 100
-                initial_obstacle_count = 5  # Only activate 5 obstacles initially
+                initial_obstacle_count = 5
                 for i, obs in enumerate(obstacles_ref):
                     if i < initial_obstacle_count:
                         obs.active = True
@@ -1374,8 +1474,15 @@ class Boss:
 class Bullet(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
-        self.image = pygame.Surface((20, 8))
-        self.image.fill((255, 230, 90))
+        paper_width = 60
+        paper_height = 40
+        self.image = pygame.Surface((paper_width, paper_height), pygame.SRCALPHA)
+        self.image.fill((255, 255, 250))
+        pygame.draw.rect(self.image, (0, 0, 0), (0, 0, paper_width, paper_height), 2)
+        resign_font = pygame.font.Font(None, 18)
+        resign_text = resign_font.render("RESIGN", True, (0, 0, 0))
+        text_rect = resign_text.get_rect(center=(paper_width // 2, paper_height // 2))
+        self.image.blit(resign_text, text_rect)
         self.rect = self.image.get_rect(midleft=(x, y))
         self.speed = 1000
 
@@ -1383,41 +1490,41 @@ class Bullet(pygame.sprite.Sprite):
         self.rect.x += self.speed * dt
         if self.rect.left > SCREEN_WIDTH:
             self.kill()
-        pass
 
 # ------------------------- Game Objects -------------------------
-# Load different background images for each stage
-def create_tinted_background(base_image, tint_color, intensity=0.3):
-    """Create a tinted version of the background"""
-    tinted = base_image.copy()
-    # Overlay size matches visible background area
-    overlay = pygame.Surface((SCREEN_WIDTH, 525))
-    overlay.fill(tint_color)
-    overlay.set_alpha(int(255 * intensity))
-    tinted.blit(overlay, (0, 0))
-    return tinted
-
 background_stages = []
 for i, path in enumerate(background_image_paths):
     try:
         bg = pygame.image.load(resource_path(os.path.join("Asset", path))).convert()
-        # Scale to visible area only (525 pixels height between roof and terrain)
         bg = pygame.transform.scale(bg, (SCREEN_WIDTH, 525))
-        
-        if i == 1:
-            bg = create_tinted_background(bg, (100, 150, 255), 0.35)  # Blue tint for stage 1
-        elif i == 2:
-            bg = create_tinted_background(bg, (255, 150, 100), 0.35)  # Orange/red tint for stage 2 (and endless)
         
         background_stages.append(bg)
     except:
         base_bg = pygame.image.load(resource_path(os.path.join("Asset", background_image_paths[0]))).convert()
         base_bg = pygame.transform.scale(base_bg, (SCREEN_WIDTH, 525))
-        if i == 1:
-            base_bg = create_tinted_background(base_bg, (100, 150, 255), 0.35)
-        elif i == 2:
-            base_bg = create_tinted_background(base_bg, (255, 150, 100), 0.35)
         background_stages.append(base_bg)
+
+roof_stages = []
+for i, path in enumerate(roof_image_paths):
+    try:
+        roof_img = pygame.image.load(resource_path(os.path.join("Asset", path))).convert_alpha()
+        roof_texture = pygame.transform.scale(roof_img, (SCREEN_WIDTH, 125))
+        roof_stages.append(roof_texture)
+    except:
+        base_roof = pygame.image.load(resource_path(os.path.join("Asset", roof_image_paths[0]))).convert_alpha()
+        base_roof_texture = pygame.transform.scale(base_roof, (SCREEN_WIDTH, 125))
+        roof_stages.append(base_roof_texture)
+
+terrain_stages = []
+for i, path in enumerate(terrain_image_paths):
+    try:
+        terrain_img = pygame.image.load(resource_path(os.path.join("Asset", path))).convert_alpha()
+        terrain_texture = pygame.transform.scale(terrain_img, (SCREEN_WIDTH, 150))
+        terrain_stages.append(terrain_texture)
+    except:
+        base_terrain = pygame.image.load(resource_path(os.path.join("Asset", terrain_image_paths[0]))).convert_alpha()
+        base_terrain_texture = pygame.transform.scale(base_terrain, (SCREEN_WIDTH, 150))
+        terrain_stages.append(base_terrain_texture)
 
 current_background_index = 0
 background_image = background_stages[0]  # Default to first stage
@@ -1427,8 +1534,8 @@ bullets = pygame.sprite.Group()
 shoot_cooldown = 0.3
 shoot_timer = 0
 
-above = Roof(roof_image, 0, 0)
-base = Terrain(terrain_image, 0, 650)
+above = Roof(roof_stages[0], 0, 0)
+base = Terrain(terrain_stages[0], 0, 650)
 player = Player(player_image, 100, base.top, player_jump_image, player_slide_image)
 
 obstacles = []
@@ -1454,12 +1561,18 @@ def spawn_obstacle(obs):
     obs.reset(new_x, base.top)
 
 def reset_game():
-    global game_over, game_started, prev_game_started, score, current_boss_index, boss_active, boss, stage_text, ammo, boss_spawning, reloading, reload_time, current_background_index, background_image, background_transition
+    global game_over, game_started, prev_game_started, score, current_boss_index, boss_active, boss, stage_text, ammo, boss_spawning, reloading, reload_time, current_background_index, background_image, background_transition, roof_stages, terrain_stages, above, base
     player.reset()
     current_background_index = 0
     background_image = background_stages[0]
     background_transition.transitioning = False
     background_transition.transition_timer = 0
+    above.set_texture(roof_stages[0])
+    above.transitioning = False
+    above.transition_timer = 0
+    base.set_texture(terrain_stages[0])
+    base.transitioning = False
+    base.transition_timer = 0
     x = 1100
     for obs in obstacles:
         obs.type = random.randint(0, 4)
@@ -1559,6 +1672,7 @@ while running:
                             player.obstacle.centerx = current_centerx
                             if player.on_ground or near_ground:
                                 player.obstacle.bottom = base.top
+
         elif event.type == pygame.KEYUP:
             if state == GAME and not game_over:
                 if event.key == pygame.K_s or event.key == pygame.K_DOWN:
@@ -1582,6 +1696,7 @@ while running:
                                 player.obstacle.width = player.jumping_width
                                 player.obstacle.bottom = current_bottom
                                 player.obstacle.centerx = current_centerx
+
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if state == MENU:
                 if btn_start_rect.collidepoint(mouse_pos):
@@ -1651,6 +1766,8 @@ while running:
                 stage_text = None
 
         background_transition.update(dt)
+        above.update_transition(dt)
+        base.update_transition(dt)
         
         if game_started:
             background_transition.draw(screen, background_image)
@@ -1838,7 +1955,6 @@ while running:
                             if not game_over:
                                 game_over = True
             
-
         shoot_timer -= dt
         
         if reloading:
@@ -1852,7 +1968,6 @@ while running:
             reloading = True
             reload_time = 0
         
-        # Prevent shooting when boss 2 or 3 uses horizontal laser barrage
         can_shoot = True
         if boss_active and boss is not None:
             if boss.horizontal_laser_barrage_active:
@@ -1915,7 +2030,6 @@ while running:
             ammo_text = font.render(f"Ammo : reloading.../{max_ammo}", True, (255, 200, 0))
         else:
             ammo_text = font.render(f"Ammo : {int(ammo)}/{max_ammo}", True, WHITE)
-        # Position ammo to match score's right margin (350px from right edge)
         screen.blit(ammo_text, (50, 50))
         if stage_text is not None:
             stage_text.draw(screen)
