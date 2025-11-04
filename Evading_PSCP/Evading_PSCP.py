@@ -23,22 +23,20 @@ BTN_BORDER = (140, 140, 140)
 BTN_HOVER = (70, 80, 92)
 
 """ Graphics Stuff """
-icon_image = pygame.image.load(resource_path(os.path.join("Asset", "cats.jpg")))
-terrain_image = "terrain.JPG"
+icon_image = pygame.image.load(resource_path(os.path.join("Asset", "icon.JPG")))
 player_image = "default.PNG"
 player_jump_image = "jump.PNG"  
 player_slide_image = "slide.PNG" 
-roof_image = "roof.PNG"
 roof_image_paths = [
     "roof1.PNG",
     "roof2.JPG",
-    "roof1.PNG",
+    "roof3.JPG",
 ]
 terrain_image = "terrain.JPG"
 terrain_image_paths = [
     "terrain1.JPG",
     "terrain2.JPG",
-    "terrain2.JPG",
+    "terrain3.JPG",
 ]
 boss_image_paths = [
     "boss1.PNG",  # Boss 1 image
@@ -48,7 +46,7 @@ boss_image_paths = [
 background_image_paths = [
     "stage1.JPG",
     "stage2.JPG",
-    "stage1.JPG", 
+    "stage3.JPG", 
 ]
 obstacle_images_paths = [
     "tall.PNG",
@@ -367,7 +365,6 @@ class Player:
             self.velocity = 0
 
     def reset(self):
-        # Reset to original start position (use base.top for correct ground alignment)
         self.obstacle.midbottom = (self.start_x, base.top)
         self.obstacle.width = self.normal_width
         self.obstacle.height = self.normal_height
@@ -490,26 +487,23 @@ class Roof:
 
     def create(self, surface):
         if self.transitioning:
-            # Draw both textures for each scrolling tile
             for i in range(2):
                 base_x = self.roof[i].x
                 base_y = self.roof[i].y
                 
-                # Current texture positions
-                current_x1 = base_x + self.current_x
-                current_x2 = base_x + self.current_x + SCREEN_WIDTH
+                current_x = base_x + self.current_x
+                next_x = base_x + self.next_x
                 
-                # Next texture positions
-                next_x1 = base_x + self.next_x
-                next_x2 = base_x + self.next_x + SCREEN_WIDTH
+                surface.blit(self.current_texture, (current_x, base_y))
+                surface.blit(self.next_texture, (next_x, base_y))
                 
-                # Draw current texture (both tiles)
-                surface.blit(self.current_texture, (current_x1, base_y))
-                surface.blit(self.current_texture, (current_x2, base_y))
+                if current_x < 0:
+                    surface.blit(self.next_texture, (current_x + SCREEN_WIDTH, base_y))
+                if next_x > SCREEN_WIDTH:
+                    surface.blit(self.current_texture, (next_x - SCREEN_WIDTH, base_y))
                 
-                # Draw next texture (both tiles)
-                surface.blit(self.next_texture, (next_x1, base_y))
-                surface.blit(self.next_texture, (next_x2, base_y))
+                surface.blit(self.current_texture, (current_x + SCREEN_WIDTH, base_y))
+                surface.blit(self.next_texture, (next_x + SCREEN_WIDTH, base_y))
         else:
             for i in self.roof:
                 surface.blit(self.texture, i)
@@ -576,26 +570,23 @@ class Terrain:
 
     def create(self, surface):
         if self.transitioning:
-            # Draw both textures for each scrolling tile
             for i in range(2):
                 base_x = self.terrain[i].x
                 base_y = self.terrain[i].y
                 
-                # Current texture positions
-                current_x1 = base_x + self.current_x
-                current_x2 = base_x + self.current_x + SCREEN_WIDTH
+                current_x = base_x + self.current_x
+                next_x = base_x + self.next_x
                 
-                # Next texture positions
-                next_x1 = base_x + self.next_x
-                next_x2 = base_x + self.next_x + SCREEN_WIDTH
+                surface.blit(self.current_texture, (current_x, base_y))
+                surface.blit(self.next_texture, (next_x, base_y))
                 
-                # Draw current texture (both tiles)
-                surface.blit(self.current_texture, (current_x1, base_y))
-                surface.blit(self.current_texture, (current_x2, base_y))
+                if current_x < 0:
+                    surface.blit(self.next_texture, (current_x + SCREEN_WIDTH, base_y))
+                if next_x > SCREEN_WIDTH:
+                    surface.blit(self.current_texture, (next_x - SCREEN_WIDTH, base_y))
                 
-                # Draw next texture (both tiles)
-                surface.blit(self.next_texture, (next_x1, base_y))
-                surface.blit(self.next_texture, (next_x2, base_y))
+                surface.blit(self.current_texture, (current_x + SCREEN_WIDTH, base_y))
+                surface.blit(self.next_texture, (next_x + SCREEN_WIDTH, base_y))
         else:
             for i in self.terrain:
                 surface.blit(self.texture, i)
@@ -916,39 +907,22 @@ class Boss:
                 self.rect.right = self.current_x
             else:
                 self.active = False
-                self.defeated = False  # Clear defeated flag so score/obstacles can resume
-                # Trigger background transition when boss defeat animation completes
-                # Skip transition for endless mode (stage 3) - just stay at stage 3 background
+                self.defeated = False
                 global background_transition, background_stages, current_background_index, background_image, current_boss_index, roof_stages, terrain_stages, above, base
                 if not background_transition.transitioning:
-                    # Determine next stage based on the boss that was just defeated
-                    # boss_index is 0-based: 0=first boss, 1=second boss, 2=third boss
-                    # After defeating boss 0, we go to stage 1 background
-                    # After defeating boss 1, we go to stage 2 background  
-                    # After defeating boss 2, we go to stage 3 background (endless) - no transition
-                    # Stage 3 (endless) uses the same background as stage 2, so cap at index 2
-                    next_bg_index = min(self.boss_index + 1, 2)  # Max index is 2 (stage 2 = endless)
+                    next_bg_index = min(self.boss_index + 1, 2)
                     if current_background_index != next_bg_index:
-                        # For endless mode (when reaching stage 2), skip transition animation, just set the background
-                        if next_bg_index >= 2:  # Stage 2 (which is also used for endless)
-                            current_background_index = 2
-                            background_image = background_stages[2]  # Use stage 2 image for endless
-                            above.set_texture(roof_stages[2])
-                            base.set_texture(terrain_stages[2])
-                        else:
-                            # For stages 0-1, animate the transition
-                            current_bg = background_stages[current_background_index] if current_background_index < len(background_stages) else background_stages[0]
-                            next_bg = background_stages[next_bg_index]
-                            background_transition.start_transition(current_bg, next_bg)
-                            background_image = next_bg
-                            # Transition roof and terrain
-                            current_roof = roof_stages[current_background_index] if current_background_index < len(roof_stages) else roof_stages[0]
-                            next_roof = roof_stages[next_bg_index]
-                            above.start_transition(current_roof, next_roof)
-                            current_terrain = terrain_stages[current_background_index] if current_background_index < len(terrain_stages) else terrain_stages[0]
-                            next_terrain = terrain_stages[next_bg_index]
-                            base.start_transition(current_terrain, next_terrain)
-                            current_background_index = next_bg_index
+                        current_bg = background_stages[current_background_index] if current_background_index < len(background_stages) else background_stages[0]
+                        next_bg = background_stages[next_bg_index]
+                        background_transition.start_transition(current_bg, next_bg)
+                        background_image = next_bg
+                        current_roof = roof_stages[current_background_index] if current_background_index < len(roof_stages) else roof_stages[0]
+                        next_roof = roof_stages[next_bg_index]
+                        above.start_transition(current_roof, next_roof)
+                        current_terrain = terrain_stages[current_background_index] if current_background_index < len(terrain_stages) else terrain_stages[0]
+                        next_terrain = terrain_stages[next_bg_index]
+                        base.start_transition(current_terrain, next_terrain)
+                        current_background_index = next_bg_index
             return
             
         if self.appearing:
@@ -1194,7 +1168,6 @@ class Boss:
                 target_x = self.rect.centerx + rotated_x * target_dist
                 target_y = self.rect.centery + rotated_y * target_dist
                 
-                # Start from boss head
                 start_x = self.rect.centerx
                 start_y = self.rect.top + 50
                 
@@ -1302,10 +1275,9 @@ class Boss:
         self.head_laser_warnings.clear()
         
         laser_start_x = self.rect.centerx
-        laser_start_y = self.rect.top + 50  # From boss head
+        laser_start_y = self.rect.top + 50
         
         for _ in range(barrage_count):
-            # Aim generally toward the player with some spread so it goes leftwards
             dir_x = player_rect.centerx - laser_start_x
             dir_y = player_rect.centery - laser_start_y
             base_angle = math.atan2(dir_y, dir_x)
